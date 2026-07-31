@@ -1,0 +1,6 @@
+{
+  "name": "MX App",
+  "description": "Real-time Ethiopian Birr provably fair gaming and instant wallet app platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
