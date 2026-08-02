@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Gamepad2, Wallet, Crown, ShieldCheck, ArrowDownRight, Sparkles, User, LineChart } from 'lucide-react';
+import { Gamepad2, Wallet, Crown, ShieldCheck, ArrowDownRight, Sparkles, User, LineChart, Zap, MessageSquare, Trophy, Smartphone, Wifi, Battery } from 'lucide-react';
 import { Header } from './components/Header';
 import { SpinArena } from './components/SpinArena';
 import { MultiplayerSidebar } from './components/MultiplayerSidebar';
@@ -142,10 +142,10 @@ export default function App() {
     connected: true,
     walletType: 'phantom',
     balances: {
-      SOL: 25.50,
-      USDT: 500.00,
-      CBE: 200.00,
-      Telebirr: 200.00
+      SOL: 1.00,
+      USDT: 1.00,
+      CBE: 1.00,
+      Telebirr: 1.00
     },
     vipTier: 'Gold',
     vipPoints: 4800,
@@ -256,6 +256,11 @@ export default function App() {
   const [userSpins, setUserSpins] = useState<SpinResult[]>(SAMPLE_USER_SPINS);
   const [transactions, setTransactions] = useState<CryptoTransaction[]>([]);
   const [onlineCount, setOnlineCount] = useState<number>(30000);
+
+  // Mobile App Navigation & Device Frame States
+  const [mobileTab, setMobileTab] = useState<'arena' | 'feed' | 'chat' | 'ranks'>('arena');
+  const [sidebarTabOverride, setSidebarTabOverride] = useState<'feed' | 'chat' | 'leaderboard'>('feed');
+  const [isPhoneMode, setIsPhoneMode] = useState<boolean>(false);
 
   // Modal & Streak States
   const [walletModalOpen, setWalletModalOpen] = useState<boolean>(false);
@@ -552,7 +557,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col selection:bg-amber-500 selection:text-slate-950">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col selection:bg-amber-500 selection:text-slate-950 overscroll-none">
       {/* Header Bar */}
       <Header
         user={user}
@@ -569,6 +574,8 @@ export default function App() {
         onOpenProfile={() => setProfileModalOpen(true)}
         soundEnabled={soundEnabled}
         onToggleSound={() => setSoundEnabled(!soundEnabled)}
+        isPhoneMode={isPhoneMode}
+        onTogglePhoneMode={() => setIsPhoneMode(!isPhoneMode)}
       />
 
       {/* 3-Spin Winning Streak Notification & Firework Animation Overlay */}
@@ -578,87 +585,167 @@ export default function App() {
         onClose={() => setStreakNotificationOpen(false)}
       />
 
-      {/* Main Layout Grid */}
-      <div className="flex-1 flex flex-col lg:flex-row w-full">
-        {/* Game Stage Area */}
-        <main className="flex-1 flex flex-col">
-          <SpinArena
-            user={user}
-            selectedCurrency={selectedCurrency}
-            onSpinSubmit={handleSpinSubmit}
-            onOpenProvablyFair={() => setProvablyFairModalOpen(true)}
-            lastResult={lastResult}
-          />
-        </main>
-
-        {/* Live Multiplayer & Leaderboard Sidebar */}
-        <MultiplayerSidebar
-          chatHistory={chatHistory}
-          leaderboard={leaderboard}
-          recentSpins={recentSpins}
-          onSendChat={handleSendChat}
-          onSendTip={handleSendTip}
-          username={user.username}
-          vipTier={user.vipTier}
-          onlineCount={onlineCount}
-        />
-      </div>
-
-      {/* Mobile App Native Bottom Dock Navigation */}
-      <div className="lg:hidden sticky bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/80 px-2 py-2 flex items-center justify-around shadow-2xl">
-        <button
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="flex flex-col items-center gap-1 text-[11px] font-bold text-amber-400 hover:text-amber-300 transition-colors"
+      {/* Smartphone Desktop Mockup Frame Container (if phone frame toggle active on desktop) */}
+      <div className={`flex-1 flex flex-col w-full ${isPhoneMode ? 'items-center justify-center p-2 sm:p-6 bg-slate-900/40' : ''}`}>
+        <div
+          className={`flex-1 flex flex-col w-full transition-all ${
+            isPhoneMode
+              ? 'max-w-sm sm:max-w-md w-full bg-slate-950 border-4 sm:border-8 border-slate-800 rounded-[3rem] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden relative min-h-[750px] my-2'
+              : ''
+          }`}
         >
-          <Gamepad2 className="w-5 h-5 text-amber-400" />
-          <span>Arena</span>
-        </button>
+          {/* Simulated Mobile Device Top Status & Camera Notch Bar (only when in phone frame mode) */}
+          {isPhoneMode && (
+            <div className="bg-slate-950 border-b border-slate-800/60 px-5 py-2 flex items-center justify-between text-[11px] font-semibold text-slate-400 select-none z-30">
+              <span className="font-mono text-slate-200">09:41</span>
+              {/* Dynamic Island / Notch Pill */}
+              <div className="w-20 h-4 bg-slate-900 rounded-full border border-slate-800 flex items-center justify-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Wifi className="w-3.5 h-3.5 text-slate-300" />
+                <Battery className="w-4 h-4 text-emerald-400 fill-emerald-400" />
+              </div>
+            </div>
+          )}
 
-        <button
-          onClick={() => setProfileModalOpen(true)}
-          className="flex flex-col items-center gap-1 text-[11px] font-bold text-cyan-400 hover:text-cyan-300 transition-colors"
-        >
-          <LineChart className="w-5 h-5 text-cyan-400" />
-          <span>Profile & Stats</span>
-        </button>
+          {/* Main Layout Content Area */}
+          <div className="flex-1 flex flex-col lg:flex-row w-full overflow-y-auto">
+            {/* On Phone Screen or when in phone mode: render active tab view */}
+            <div className={`w-full flex-1 flex flex-col ${isPhoneMode ? 'block' : 'lg:hidden'}`}>
+              {mobileTab === 'arena' && (
+                <main className="flex-1 flex flex-col animate-in fade-in duration-200">
+                  <SpinArena
+                    user={user}
+                    selectedCurrency={selectedCurrency}
+                    onSpinSubmit={handleSpinSubmit}
+                    onOpenProvablyFair={() => setProvablyFairModalOpen(true)}
+                    lastResult={lastResult}
+                  />
+                </main>
+              )}
 
-        <button
-          onClick={() => {
-            setWalletInitialTab('deposit');
-            setWalletModalOpen(true);
-          }}
-          className="flex flex-col items-center gap-1 text-[11px] font-bold text-emerald-400 hover:text-emerald-300 transition-colors"
-        >
-          <ArrowDownRight className="w-5 h-5 text-emerald-400" />
-          <span>Deposit</span>
-        </button>
+              {(mobileTab === 'feed' || mobileTab === 'chat' || mobileTab === 'ranks') && (
+                <div className="flex-1 flex flex-col animate-in fade-in duration-200">
+                  <MultiplayerSidebar
+                    chatHistory={chatHistory}
+                    leaderboard={leaderboard}
+                    recentSpins={recentSpins}
+                    onSendChat={handleSendChat}
+                    onSendTip={handleSendTip}
+                    username={user.username}
+                    vipTier={user.vipTier}
+                    onlineCount={onlineCount}
+                    activeTabOverride={sidebarTabOverride}
+                  />
+                </div>
+              )}
+            </div>
 
-        <button
-          onClick={() => {
-            setWalletInitialTab('withdraw');
-            setWalletModalOpen(true);
-          }}
-          className="flex flex-col items-center gap-1 text-[11px] font-bold text-slate-300 hover:text-white transition-colors"
-        >
-          <Wallet className="w-5 h-5 text-slate-300" />
-          <span>Wallet</span>
-        </button>
+            {/* Desktop Full Layout (Hidden if phone mode active) */}
+            {!isPhoneMode && (
+              <div className="hidden lg:flex flex-1 w-full">
+                {/* Game Stage Area */}
+                <main className="flex-1 flex flex-col">
+                  <SpinArena
+                    user={user}
+                    selectedCurrency={selectedCurrency}
+                    onSpinSubmit={handleSpinSubmit}
+                    onOpenProvablyFair={() => setProvablyFairModalOpen(true)}
+                    lastResult={lastResult}
+                  />
+                </main>
 
-        <button
-          onClick={() => setVipModalOpen(true)}
-          className="flex flex-col items-center gap-1 text-[11px] font-bold text-purple-400 hover:text-purple-300 transition-colors"
-        >
-          <Crown className="w-5 h-5 text-purple-400" />
-          <span>VIP</span>
-        </button>
+                {/* Live Multiplayer & Leaderboard Sidebar */}
+                <MultiplayerSidebar
+                  chatHistory={chatHistory}
+                  leaderboard={leaderboard}
+                  recentSpins={recentSpins}
+                  onSendChat={handleSendChat}
+                  onSendTip={handleSendTip}
+                  username={user.username}
+                  vipTier={user.vipTier}
+                  onlineCount={onlineCount}
+                />
+              </div>
+            )}
+          </div>
 
-        <button
-          onClick={() => setProvablyFairModalOpen(true)}
-          className="flex flex-col items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-slate-200 transition-colors"
-        >
-          <ShieldCheck className="w-5 h-5 text-slate-400" />
-          <span>Fair</span>
-        </button>
+          {/* Mobile App Native Bottom Dock Navigation */}
+          <div className={`${isPhoneMode ? 'block' : 'lg:hidden'} sticky bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/80 px-2 py-2.5 flex items-center justify-around shadow-2xl`}>
+            <button
+              onClick={() => {
+                setMobileTab('arena');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`flex flex-col items-center gap-1 text-[11px] font-bold transition-all active:scale-95 ${
+                mobileTab === 'arena' ? 'text-amber-400 scale-105' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Gamepad2 className={`w-5 h-5 ${mobileTab === 'arena' ? 'text-amber-400' : 'text-slate-400'}`} />
+              <span>Arena</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setMobileTab('feed');
+                setSidebarTabOverride('feed');
+              }}
+              className={`flex flex-col items-center gap-1 text-[11px] font-bold transition-all active:scale-95 ${
+                mobileTab === 'feed' ? 'text-amber-400 scale-105' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Zap className={`w-5 h-5 ${mobileTab === 'feed' ? 'text-amber-400' : 'text-slate-400'}`} />
+              <span>Live Feed</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setMobileTab('chat');
+                setSidebarTabOverride('chat');
+              }}
+              className={`flex flex-col items-center gap-1 text-[11px] font-bold transition-all active:scale-95 ${
+                mobileTab === 'chat' ? 'text-amber-400 scale-105' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <MessageSquare className={`w-5 h-5 ${mobileTab === 'chat' ? 'text-amber-400' : 'text-slate-400'}`} />
+              <span>Chat</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setMobileTab('ranks');
+                setSidebarTabOverride('leaderboard');
+              }}
+              className={`flex flex-col items-center gap-1 text-[11px] font-bold transition-all active:scale-95 ${
+                mobileTab === 'ranks' ? 'text-amber-400 scale-105' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Trophy className={`w-5 h-5 ${mobileTab === 'ranks' ? 'text-amber-400' : 'text-slate-400'}`} />
+              <span>Ranks</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setWalletInitialTab('deposit');
+                setWalletModalOpen(true);
+              }}
+              className="flex flex-col items-center gap-1 text-[11px] font-bold text-emerald-400 hover:text-emerald-300 transition-colors active:scale-95"
+            >
+              <ArrowDownRight className="w-5 h-5 text-emerald-400" />
+              <span>Wallet</span>
+            </button>
+
+            <button
+              onClick={() => setProfileModalOpen(true)}
+              className="flex flex-col items-center gap-1 text-[11px] font-bold text-cyan-400 hover:text-cyan-300 transition-colors active:scale-95"
+            >
+              <LineChart className="w-5 h-5 text-cyan-400" />
+              <span>Stats</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Modals */}

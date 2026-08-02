@@ -25,7 +25,7 @@ export const SpinArena: React.FC<SpinArenaProps> = ({
   lastResult
 }) => {
   const [activeMode, setActiveMode] = useState<GameMode>('fortune');
-  const [wagerAmount, setWagerAmount] = useState<number>(20);
+  const [wagerAmount, setWagerAmount] = useState<number>(1);
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
   const [autoSpin, setAutoSpin] = useState<boolean>(false);
   const [autoSpinCount, setAutoSpinCount] = useState<number>(10);
@@ -179,11 +179,11 @@ export const SpinArena: React.FC<SpinArenaProps> = ({
 
   // Update default wager on currency change
   useEffect(() => {
-    if (selectedCurrency === 'BTC') setWagerAmount(0.001);
-    else if (selectedCurrency === 'ETH') setWagerAmount(0.02);
-    else if (selectedCurrency === 'SOL') setWagerAmount(0.2);
-    else if (selectedCurrency === 'DOGE') setWagerAmount(100);
-    else setWagerAmount(20);
+    if (selectedCurrency === 'BTC') setWagerAmount(0.0001);
+    else if (selectedCurrency === 'ETH') setWagerAmount(0.001);
+    else if (selectedCurrency === 'SOL') setWagerAmount(0.01);
+    else if (selectedCurrency === 'DOGE') setWagerAmount(1);
+    else setWagerAmount(1);
   }, [selectedCurrency]);
 
   // Draw Fortune Wheel on Canvas
@@ -315,8 +315,8 @@ export const SpinArena: React.FC<SpinArenaProps> = ({
   // Execute Spin Action
   const handleSpin = async () => {
     if (isSpinning) return;
-    if (wagerAmount <= 0) {
-      alert('Please enter a valid wager amount');
+    if (wagerAmount < 1) {
+      alert(`Minimum play is 1 ${selectedCurrency === 'Telebirr' || selectedCurrency === 'CBE' ? 'Birr' : selectedCurrency}`);
       stopAutoSpin();
       return;
     }
@@ -728,11 +728,11 @@ export const SpinArena: React.FC<SpinArenaProps> = ({
               <div className="relative flex-1">
                 <input
                   type="number"
-                  step={selectedCurrency === 'BTC' ? 0.0001 : 0.01}
-                  min={0.0001}
+                  step={selectedCurrency === 'BTC' ? 0.0001 : 1}
+                  min={1}
                   disabled={isAutoSpinActive || isSpinning}
                   value={wagerAmount}
-                  onChange={(e) => setWagerAmount(Math.max(0, Number(e.target.value)))}
+                  onChange={(e) => setWagerAmount(Math.max(1, Number(e.target.value)))}
                   className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-4 py-3 text-white font-mono font-bold text-sm focus:outline-none transition-colors disabled:opacity-50"
                 />
                 <span className="absolute right-3 top-3 text-xs font-bold text-amber-400">{selectedCurrency}</span>
@@ -742,14 +742,14 @@ export const SpinArena: React.FC<SpinArenaProps> = ({
               <div className="flex items-center gap-1 flex-wrap">
                 <button
                   disabled={isAutoSpinActive || isSpinning}
-                  onClick={() => setWagerPreset('preset', 20)}
+                  onClick={() => setWagerPreset('preset', 1)}
                   className={`border font-bold text-xs px-2.5 py-3 rounded-xl transition-all disabled:opacity-50 ${
-                    wagerAmount === 20
+                    wagerAmount === 1
                       ? 'bg-amber-500/20 border-amber-500 text-amber-400 font-extrabold shadow-sm shadow-amber-500/20'
                       : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-amber-300'
                   }`}
                 >
-                  20 Birr
+                  1 Birr
                 </button>
                 <button
                   disabled={isAutoSpinActive || isSpinning}

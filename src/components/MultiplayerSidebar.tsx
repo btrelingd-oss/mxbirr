@@ -24,6 +24,7 @@ interface MultiplayerSidebarProps {
   username: string;
   vipTier: VipTier;
   onlineCount: number;
+  activeTabOverride?: 'chat' | 'leaderboard' | 'feed';
 }
 
 export const MultiplayerSidebar: React.FC<MultiplayerSidebarProps> = ({
@@ -34,9 +35,16 @@ export const MultiplayerSidebar: React.FC<MultiplayerSidebarProps> = ({
   onSendTip,
   username,
   vipTier,
-  onlineCount
+  onlineCount,
+  activeTabOverride
 }) => {
   const [activeTab, setActiveTab] = useState<'chat' | 'leaderboard' | 'feed'>('feed');
+
+  useEffect(() => {
+    if (activeTabOverride) {
+      setActiveTab(activeTabOverride);
+    }
+  }, [activeTabOverride]);
   const [inputText, setInputText] = useState<string>('');
   const [tipModalOpen, setTipModalOpen] = useState<boolean>(false);
   const [tipRecipient, setTipRecipient] = useState<string>('');

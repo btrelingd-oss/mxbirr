@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Wallet, ArrowDownRight, ArrowUpRight, ShieldCheck, Crown, Volume2, VolumeX, Sparkles, ChevronDown, Flame } from 'lucide-react';
+import { Wallet, ArrowDownRight, ArrowUpRight, ShieldCheck, Crown, Volume2, VolumeX, Sparkles, ChevronDown, Flame, Smartphone } from 'lucide-react';
 import { UserProfile, CryptoCurrency, CryptoPrice } from '../types';
 import { sounds } from '../utils/audio';
 import { MXLogo } from './MXLogo';
@@ -16,6 +16,8 @@ interface HeaderProps {
   onOpenProfile?: () => void;
   soundEnabled: boolean;
   onToggleSound: () => void;
+  isPhoneMode?: boolean;
+  onTogglePhoneMode?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -29,7 +31,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenProvablyFair,
   onOpenProfile,
   soundEnabled,
-  onToggleSound
+  onToggleSound,
+  isPhoneMode,
+  onTogglePhoneMode
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -90,6 +94,25 @@ export const Header: React.FC<HeaderProps> = ({
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
             <span>Fairness</span>
           </button>
+
+          {/* Phone App View Toggle Button */}
+          {onTogglePhoneMode && (
+            <button
+              onClick={() => {
+                onTogglePhoneMode();
+                sounds.playChip();
+              }}
+              className={`hidden sm:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border font-bold transition-all active:scale-95 ${
+                isPhoneMode
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 shadow-[0_0_12px_rgba(245,158,11,0.3)]'
+                  : 'bg-slate-900/80 hover:bg-slate-800 border-slate-700/60 text-slate-300'
+              }`}
+              title={isPhoneMode ? 'Switch to Full Web Layout' : 'Switch to Smartphone App Shell'}
+            >
+              <Smartphone className="w-4 h-4 text-amber-400" />
+              <span>{isPhoneMode ? 'Phone Frame' : 'Phone App'}</span>
+            </button>
+          )}
 
           {/* Sound Toggle Button */}
           <button
