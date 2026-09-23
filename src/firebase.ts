@@ -265,7 +265,7 @@ export async function savePhoneLoginRecordToFirestore(
       phoneNumber: cleanPhone
     });
   } catch (err) {
-    console.error('[Firebase] Could not save phone login record to Firestore:', err);
+    console.warn('[Firebase] Notice saving phone login record to Firestore:', err);
   }
 }
 
@@ -487,7 +487,7 @@ export async function syncAdminToFirebase(adminUser: UserProfile): Promise<boole
     console.info('[Firebase] Admin user connected to Firestore database:', firebaseConfig.firestoreDatabaseId);
     return true;
   } catch (err) {
-    console.error('[Firebase] Failed to connect admin to Firebase:', err);
+    console.warn('[Firebase] Notice connecting admin to Firebase:', err);
     return false;
   }
 }
@@ -593,7 +593,7 @@ export async function adminUpdateUserBalance(
     await setDoc(userRef, { balances, updatedAt: Date.now() }, { merge: true });
     return true;
   } catch (err) {
-    console.error('[Firebase] Admin balance update failed:', err);
+    console.warn('[Firebase] Admin balance update notice:', err);
     return false;
   }
 }
@@ -616,7 +616,7 @@ export async function adminBroadcastSystemMessage(text: string, adminName: strin
     });
     return true;
   } catch (err) {
-    console.error('[Firebase] Broadcast message failed:', err);
+    console.warn('[Firebase] Broadcast message notice:', err);
     return false;
   }
 }

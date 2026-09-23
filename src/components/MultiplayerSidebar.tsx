@@ -58,7 +58,7 @@ export const MultiplayerSidebar: React.FC<MultiplayerSidebarProps> = ({
   // Live winners rapid ticker and configuration
   const [liveWinners, setLiveWinners] = useState<LiveWinnerFeedItem[]>(INITIAL_LIVE_WINNERS);
   const [feedSpeed, setFeedSpeed] = useState<'hyper' | 'fast' | 'normal' | 'paused'>('hyper');
-  const [minWinFilter, setMinWinFilter] = useState<number>(7000);
+  const [minWinFilter, setMinWinFilter] = useState<number>(50000);
   const feedContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Fast live winners ticker (0.1s - 0.3s in hyper mode)
@@ -312,6 +312,9 @@ export const MultiplayerSidebar: React.FC<MultiplayerSidebarProps> = ({
             <div className="text-[11px] sm:text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5 shrink-0">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50" />
               <span>LIVE WINNER FEED</span>
+              <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-black tracking-normal">
+                50,000+ BIRR
+              </span>
             </div>
 
             <div className="flex items-center gap-1.5">
@@ -349,23 +352,22 @@ export const MultiplayerSidebar: React.FC<MultiplayerSidebarProps> = ({
                 </span>
               </button>
 
-              {/* Min Win Filter (matching 7,000 Birr in image.png) */}
+              {/* Min Win Filter (Default 50,000 Birr Big Win) */}
               <button
                 onClick={() => {
                   setMinWinFilter((prev) => {
-                    if (prev === 7000) return 10000;
-                    if (prev === 10000) return 25000;
-                    if (prev === 25000) return 50000;
-                    if (prev === 50000) return 0;
-                    return 7000;
+                    if (prev === 50000) return 75000;
+                    if (prev === 75000) return 100000;
+                    if (prev === 100000) return 50000;
+                    return 50000;
                   });
                   sounds.playChip();
                 }}
-                title="Filter by minimum win amount"
+                title="Filter by minimum win amount (50,000+ Birr)"
                 className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-300 bg-emerald-950/80 hover:bg-emerald-900/90 border border-emerald-500/80 px-2 py-0.5 rounded-full shadow-sm cursor-pointer transition-all active:scale-95"
               >
                 <span className="text-[9px]">▼</span>
-                <span>{minWinFilter > 0 ? `Min Win: ${minWinFilter.toLocaleString()} Birr` : 'All Wins'}</span>
+                <span>{`Min Win: ${minWinFilter.toLocaleString()} Birr`}</span>
               </button>
             </div>
           </div>

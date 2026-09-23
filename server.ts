@@ -188,9 +188,9 @@ let liveSpinsFeed: any[] = [
     wager: 200,
     currency: 'CBE',
     wagerUSD: 200,
-    multiplier: 50.0,
-    payout: 10000,
-    payoutUSD: 10000,
+    multiplier: 250.0,
+    payout: 50000,
+    payoutUSD: 50000,
     timestamp: Date.now() - 3600000 * 3, // 3h ago
     serverSeedHash: '7a9d048291c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85231'
   },
@@ -202,9 +202,9 @@ let liveSpinsFeed: any[] = [
     wager: 200,
     currency: 'Telebirr',
     wagerUSD: 200,
-    multiplier: 75.0,
-    payout: 15000,
-    payoutUSD: 15000,
+    multiplier: 375.0,
+    payout: 75000,
+    payoutUSD: 75000,
     timestamp: Date.now() - 3600000 * 4, // 4h ago
     serverSeedHash: '12b9c048291c149afbf4c8996fb92427ae41e4649b934ca495991b7852b8123'
   },
@@ -216,9 +216,9 @@ let liveSpinsFeed: any[] = [
     wager: 200,
     currency: 'CBE',
     wagerUSD: 200,
-    multiplier: 125.0,
-    payout: 25000,
-    payoutUSD: 25000,
+    multiplier: 625.0,
+    payout: 125000,
+    payoutUSD: 125000,
     timestamp: Date.now() - 3600000 * 5, // 5h ago
     serverSeedHash: '99b9c048291c149afbf4c8996fb92427ae41e4649b934ca495991b7852b8999'
   },
@@ -258,9 +258,9 @@ let liveSpinsFeed: any[] = [
     wager: 200,
     currency: 'Telebirr',
     wagerUSD: 200,
-    multiplier: 50.0,
-    payout: 10000,
-    payoutUSD: 10000,
+    multiplier: 250.0,
+    payout: 50000,
+    payoutUSD: 50000,
     timestamp: Date.now() - 3600000 * 8, // 8h ago
     serverSeedHash: '22b9c048291c149afbf4c8996fb92427ae41e4649b934ca495991b7852b8222'
   }
@@ -369,7 +369,7 @@ setInterval(() => {
     const curr = currencies[Math.floor(Math.random() * currencies.length)];
     const modes = ['fortune', 'slots', 'roulette'] as const;
     const mode = modes[Math.floor(Math.random() * modes.length)];
-    const possiblePayouts = [11000, 66750, 50950, 59650, 69000, 95500, 26600, 12450, 84000, 115000, 37500, 78200];
+    const possiblePayouts = [50000, 50950, 54000, 59650, 66750, 69000, 78200, 84000, 92000, 95500, 115000, 128000];
     const payout = possiblePayouts[Math.floor(Math.random() * possiblePayouts.length)];
     const wager = 200;
     const mult = Number((payout / wager).toFixed(1));
@@ -526,8 +526,8 @@ app.post('/api/spin', (req, res) => {
     resultDetails
   };
 
-  // Record in live feed if min win is 10,000 Birr
-  if (spinResult.payout >= 10000) {
+  // Record in live feed if min win is 50,000 Birr
+  if (spinResult.payout >= 50000) {
     liveSpinsFeed.unshift(spinResult);
     if (liveSpinsFeed.length > 30) liveSpinsFeed.pop();
     broadcast({ type: 'new_spin', payload: spinResult });

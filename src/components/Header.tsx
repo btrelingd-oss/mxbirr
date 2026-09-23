@@ -16,7 +16,8 @@ import {
   User,
   CheckCircle2,
   RefreshCw,
-  LogIn
+  LogIn,
+  Check
 } from 'lucide-react';
 import { UserProfile, CryptoCurrency, CryptoPrice } from '../types';
 import { sounds } from '../utils/audio';
@@ -273,66 +274,54 @@ export const Header: React.FC<HeaderProps> = ({
           {/* User Session Management & Authentication Controls */}
           {user.isAuthenticated ? (
             <div className="relative" ref={userMenuRef}>
-              <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700/70 hover:border-slate-600 rounded-xl p-1 sm:px-2 sm:py-1.5 text-xs text-slate-200">
-                <button
-                  onClick={() => {
-                    setUserMenuOpen(!userMenuOpen);
-                    sounds.playChip();
-                  }}
-                  className="flex items-center gap-2 hover:text-amber-400 transition-colors"
-                  title="Account Menu"
-                >
-                  <img
-                    src={user.avatar}
-                    alt={user.username}
-                    className="w-7 h-7 rounded-full border-2 border-amber-500/60 object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="hidden md:flex flex-col text-left">
-                    <span className="font-bold text-slate-200 text-xs leading-none truncate max-w-[110px]">
-                      {user.username}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-mono leading-none mt-1 truncate max-w-[110px]">
-                      {user.email || user.address}
-                    </span>
+              <button
+                id="header-user-profile-btn"
+                onClick={() => {
+                  setUserMenuOpen(!userMenuOpen);
+                  sounds.playChip();
+                }}
+                className="flex items-center justify-center p-1.5 rounded-xl bg-slate-950 hover:bg-slate-900 border-2 border-amber-500/90 hover:border-amber-400 transition-all shadow-md shadow-amber-500/10 active:scale-95 cursor-pointer"
+                title="Private User Profile"
+              >
+                {/* Amber circle avatar with dark user silhouette and verified checkmark badge matching screenshot */}
+                <div className="relative w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-amber-500 flex items-center justify-center shadow-inner">
+                  <User className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-slate-950 fill-slate-950 stroke-[2]" />
+                  {/* Verified check badge in bottom-right corner */}
+                  <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 sm:w-3.5 sm:h-3.5 bg-emerald-500 rounded-full border border-slate-950 flex items-center justify-center text-slate-950 shadow-sm">
+                    <Check className="w-2 h-2 sm:w-2.5 sm:h-2.5 stroke-[3.5]" />
                   </div>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:inline" />
-                </button>
-
-                <button
-                  onClick={onOpenVip}
-                  className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center gap-1 transition-colors"
-                  title="VIP Benefits"
-                >
-                  <Crown className="w-3 h-3 text-amber-400" />
-                  <span className="hidden sm:inline">{user.vipTier}</span>
-                </button>
-              </div>
+                </div>
+              </button>
 
               {/* User Dropdown Menu */}
               {userMenuOpen && (
                 <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl py-2.5 z-50 animate-in fade-in slide-in-from-top-2">
-                  <div className="px-4 py-2 border-b border-slate-800/80">
-                    <div className="flex items-center gap-2.5">
-                      <img
-                        src={user.avatar}
-                        alt="Avatar"
-                        className="w-9 h-9 rounded-full border border-amber-500/50 object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="truncate">
-                        <div className="text-xs font-bold text-white truncate flex items-center gap-1">
-                          <span>{user.username}</span>
-                          <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                  <div className="px-4 py-3 border-b border-slate-800/80">
+                    <div className="flex items-center gap-3">
+                      <div className="relative w-9 h-9 rounded-full bg-amber-500 flex items-center justify-center shadow-inner shrink-0">
+                        <User className="w-5 h-5 text-slate-950 fill-slate-950 stroke-[2]" />
+                        <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border border-slate-950 flex items-center justify-center text-slate-950 shadow-sm">
+                          <Check className="w-2.5 h-2.5 stroke-[3.5]" />
                         </div>
-                        <div className="text-[11px] text-slate-400 truncate">{user.email || 'Session Active'}</div>
+                      </div>
+                      <div className="truncate">
+                        <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                          <span>{user.username || 'Private User'}</span>
+                          <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.2 rounded-full font-bold">
+                            Verified
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 truncate font-mono mt-0.5">
+                          ID: {user.id ? user.id.slice(0, 10) + '•••' : 'Private Session'}
+                        </div>
                       </div>
                     </div>
 
                     <div className="mt-2.5 flex items-center justify-between text-[11px] bg-slate-950/80 px-2.5 py-1.5 rounded-lg border border-slate-800">
-                      <span className="text-slate-400">Auth Method:</span>
-                      <span className="font-semibold text-amber-400 capitalize">
-                        {user.authProvider === 'google' ? 'Google Auth' : 'Email & Password'}
+                      <span className="text-slate-400">VIP Tier:</span>
+                      <span className="font-semibold text-amber-400 flex items-center gap-1">
+                        <Crown className="w-3 h-3 text-amber-400" />
+                        {user.vipTier}
                       </span>
                     </div>
                   </div>

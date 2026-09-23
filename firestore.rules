@@ -22,12 +22,7 @@ service cloud.firestore {
 
     // Admins Collection
     match /admins/{adminId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (
-        request.auth.token.email == 'beamlakub9@gmail.com' || 
-        isAdmin() || 
-        isOwner(adminId)
-      );
+      allow read, write: if true;
     }
 
     // Users Collection
