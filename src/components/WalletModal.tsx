@@ -13,6 +13,7 @@ interface WalletModalProps {
   onDeposit: (currency: CryptoCurrency, amount: number, network: string) => Promise<void>;
   onWithdraw: (currency: CryptoCurrency, amount: number, address: string, network: string) => Promise<void>;
   transactions: CryptoTransaction[];
+  onRestoreOneBirr?: () => void;
 }
 
 export const WalletModal: React.FC<WalletModalProps> = ({
@@ -24,7 +25,8 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   onDisconnectWallet,
   onDeposit,
   onWithdraw,
-  transactions
+  transactions,
+  onRestoreOneBirr
 }) => {
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw' | 'transactions'>(initialTab);
   const [selectedCurrency, setSelectedCurrency] = useState<CryptoCurrency>('CBE');
@@ -37,13 +39,13 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   if (!isOpen) return null;
 
   const sampleAddresses: Record<string, string> = {
-    CBE: '1000123456789',
-    Telebirr: '0911223344'
+    CBE: '1000068535477'
   };
 
-  const currentAddress = sampleAddresses[selectedCurrency] || '1000123456789';
+  const currentAddress = sampleAddresses[selectedCurrency] || '';
 
   const handleCopy = () => {
+    if (!currentAddress) return;
     navigator.clipboard.writeText(currentAddress);
     setCopied(true);
     sounds.playChip();
@@ -159,25 +161,27 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                 </div>
               </div>
 
-              {/* Deposit Address Box */}
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-300">{selectedCurrency} Account Number</span>
-                  <span className="text-[10px] text-emerald-400 font-mono">Instant Confirmation</span>
-                </div>
+              {/* Deposit Address Box (Only rendered if channel has a deposit account number, e.g. CBE) */}
+              {sampleAddresses[selectedCurrency] && (
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-300">{selectedCurrency} Account Number</span>
+                    <span className="text-[10px] text-emerald-400 font-mono">Instant Confirmation</span>
+                  </div>
 
-                <div className="flex items-center gap-2 bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                  <span className="font-mono text-xs text-amber-400 truncate flex-1">{sampleAddresses[selectedCurrency]}</span>
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md text-xs font-bold flex items-center gap-1 shrink-0"
-                  >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? 'Copied' : 'Copy'}</span>
-                  </button>
+                  <div className="flex items-center gap-2 bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                    <span className="font-mono text-xs text-amber-400 truncate flex-1">{sampleAddresses[selectedCurrency]}</span>
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md text-xs font-bold flex items-center gap-1 shrink-0"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copied ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Instant Deposit Form */}
               <div>
@@ -211,9 +215,9 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                 </div>
 
                 <div className="mt-2 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center gap-2">
-                  <span className="text-amber-400 text-xs">💡</span>
-                  <p className="text-xs font-semibold text-amber-300">
-                    masgebat yemtclute ke 200 birr belay new
+                  <span className="text-amber-400 text-xs shrink-0">💡</span>
+                  <p className="text-xs font-semibold text-amber-300 leading-relaxed">
+                    ማስገባት የምትችሉት ከ 200 ብር በላይ ሲሆን የመጀመሪያ ጨዋታ ላይ ከተበሉ 200 ብር ተመላሽ ይሆናል አሁኑኑ እድሎን ይሞክሩ
                   </p>
                 </div>
               </div>

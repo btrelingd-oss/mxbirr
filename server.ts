@@ -351,23 +351,25 @@ wss.on('connection', (ws) => {
 setInterval(() => {
   if (wss.clients.size > 0 || true) {
     const randomUsers = [
-      { name: '@am_car_77', avatar: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=120&q=80', vip: 'Platinum' },
-      { name: 'Buze vxr w', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&q=80', vip: 'Diamond' },
-      { name: '@A_yema', avatar: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=120&q=80', vip: 'Gold' },
-      { name: 'Aron jijiga', avatar: 'https://images.unsplash.com/photo-1531384441138-2736e62e0919?auto=format&fit=crop&w=120&q=80', vip: 'Silver' },
-      { name: 'Tamru zim', avatar: 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?auto=format&fit=crop&w=120&q=80', vip: 'Gold' },
-      { name: 'bebelu jo🙌', avatar: 'https://images.unsplash.com/photo-1507152832244-10d45c7eda57?auto=format&fit=crop&w=120&q=80', vip: 'Platinum' },
-      { name: 'Sudani Mnd', avatar: 'https://images.unsplash.com/photo-1523824921230-7d41096c3d53?auto=format&fit=crop&w=120&q=80', vip: 'Gold' },
-      { name: 'Ante እዉነት', avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=120&q=80', vip: 'Bronze' },
-      { name: 'kingu 😎', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&q=80', vip: 'Diamond' },
-      { name: 'ABDI_BORA', avatar: 'https://images.unsplash.com/photo-1522529599102-193c0d76b5b6?auto=format&fit=crop&w=120&q=80', vip: 'Gold' }
+      { name: 'Liyu_Master', avatar: '', vip: 'Diamond' },
+      { name: 'bebelu jo 🎧', avatar: '', vip: 'Platinum' },
+      { name: 'Bekele_Gold', avatar: '', vip: 'Gold' },
+      { name: 'ABDI_BORA', avatar: '', vip: 'Gold' },
+      { name: '@am_car_77', avatar: '', vip: 'Platinum' },
+      { name: 'Sami_Fast', avatar: '', vip: 'Gold' },
+      { name: 'Tadesse_Pro', avatar: '', vip: 'Diamond' },
+      { name: 'Helen_Fortune', avatar: '', vip: 'Platinum' },
+      { name: 'Dawit_Hero', avatar: '', vip: 'Gold' },
+      { name: 'Chala_Jackpot', avatar: '', vip: 'Diamond' },
+      { name: 'Buze vxr w', avatar: '', vip: 'Diamond' },
+      { name: 'kingu 😎', avatar: '', vip: 'Diamond' }
     ];
     const user = randomUsers[Math.floor(Math.random() * randomUsers.length)];
     const currencies = ['CBE', 'Telebirr'] as const;
     const curr = currencies[Math.floor(Math.random() * currencies.length)];
     const modes = ['fortune', 'slots', 'roulette'] as const;
     const mode = modes[Math.floor(Math.random() * modes.length)];
-    const possiblePayouts = [10000, 15000, 20000, 35000, 50000, 100000, 250000, 400000];
+    const possiblePayouts = [11000, 66750, 50950, 59650, 69000, 95500, 26600, 12450, 84000, 115000, 37500, 78200];
     const payout = possiblePayouts[Math.floor(Math.random() * possiblePayouts.length)];
     const wager = 200;
     const mult = Number((payout / wager).toFixed(1));
@@ -391,7 +393,7 @@ setInterval(() => {
     };
 
     liveSpinsFeed.unshift(botSpin);
-    if (liveSpinsFeed.length > 30) liveSpinsFeed.pop();
+    if (liveSpinsFeed.length > 50) liveSpinsFeed.pop();
 
     broadcast({ type: 'new_spin', payload: botSpin });
 
@@ -408,9 +410,13 @@ setInterval(() => {
       broadcast({ type: 'leaderboard_update', payload: leaderboardData });
     }
   }
-}, 12000);
+}, 2500);
 
 // API Endpoints
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: Date.now() });
+});
+
 app.get('/api/crypto-prices', (req, res) => {
   res.json({ success: true, prices: INITIAL_CRYPTO_PRICES });
 });

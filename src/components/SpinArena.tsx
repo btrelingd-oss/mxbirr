@@ -15,6 +15,7 @@ interface SpinArenaProps {
   ) => Promise<SpinResult | null>;
   onOpenProvablyFair: () => void;
   lastResult: SpinResult | null;
+  onClaimFreeBonus?: () => void;
 }
 
 export const SpinArena: React.FC<SpinArenaProps> = ({
@@ -22,7 +23,8 @@ export const SpinArena: React.FC<SpinArenaProps> = ({
   selectedCurrency,
   onSpinSubmit,
   onOpenProvablyFair,
-  lastResult
+  lastResult,
+  onClaimFreeBonus
 }) => {
   const [activeMode, setActiveMode] = useState<GameMode>('fortune');
   const [wagerAmount, setWagerAmount] = useState<number>(1);
@@ -30,6 +32,7 @@ export const SpinArena: React.FC<SpinArenaProps> = ({
   const [autoSpin, setAutoSpin] = useState<boolean>(false);
   const [autoSpinCount, setAutoSpinCount] = useState<number>(10);
   const [isAutoSpinActive, setIsAutoSpinActive] = useState<boolean>(false);
+  const [spinError, setSpinError] = useState<string | null>(null);
 
   const autoSpinRef = useRef<boolean>(false);
   const autoSpinCountRef = useRef<number>(10);
@@ -177,13 +180,9 @@ export const SpinArena: React.FC<SpinArenaProps> = ({
   // Canvas Ref for Wheel Rendering
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Update default wager on currency change
+  // Ensure valid wager amount
   useEffect(() => {
-    if (selectedCurrency === 'BTC') setWagerAmount(0.0001);
-    else if (selectedCurrency === 'ETH') setWagerAmount(0.001);
-    else if (selectedCurrency === 'SOL') setWagerAmount(0.01);
-    else if (selectedCurrency === 'DOGE') setWagerAmount(1);
-    else setWagerAmount(1);
+    setWagerAmount((prev) => (prev < 1 ? 1 : prev));
   }, [selectedCurrency]);
 
   // Draw Fortune Wheel on Canvas
@@ -315,13 +314,19 @@ export const SpinArena: React.FC<SpinArenaProps> = ({
   // Execute Spin Action
   const handleSpin = async () => {
     if (isSpinning) return;
-    if (wagerAmount < 1) {
-      alert(`Minimum play is 1 ${selectedCurrency === 'Telebirr' || selectedCurrency === 'CBE' ? 'Birr' : selectedCurrency}`);
+    setSpinError(null);
+
+    const currentBal = Number(user.balances?.[selectedCurrency]) || 0;
+    const minWager = 1; // 1 Birr
+
+    if (wagerAmount < minWager) {
+      setSpinError(`Minimum play is 1 ${selectedCurrency === 'Telebirr' || selectedCurrency === 'CBE' ? 'Birr' : selectedCurrency}`);
       stopAutoSpin();
       return;
     }
-    if (user.balances[selectedCurrency] < wagerAmount) {
-      alert(`Insufficient ${selectedCurrency} balance! Please deposit funds.`);
+
+    if (currentBal < wagerAmount) {
+      setSpinError(`Insufficient ${selectedCurrency} balance (${currentBal.toLocaleString()} Birr). Click 'Free Refill' below!`);
       stopAutoSpin();
       return;
     }
@@ -330,95 +335,102 @@ export const SpinArena: React.FC<SpinArenaProps> = ({
     setCurrentWin(null);
     sounds.playChip();
 
-    let rouletteBetParam = undefined;
-    if (activeMode === 'roulette') {
-      rouletteBetParam = {
-        type: rouletteBetType,
-        number: rouletteBetType === 'number' ? rouletteNumber : undefined,
-        amount: wagerAmount,
-        currency: selectedCurrency
-      };
-    }
+    try {
+      let rouletteBetParam = undefined;
+      if (activeMode === 'roulette') {
+        rouletteBetParam = {
+          type: rouletteBetType,
+          number: rouletteBetType === 'number' ? rouletteNumber : undefined,
+          amount: wagerAmount,
+          currency: selectedCurrency
+        };
+      }
 
-    // Call Backend Provably Fair Spin Endpoint
-    const result = await onSpinSubmit(activeMode, wagerAmount, selectedCurrency, rouletteBetParam);
+      // Call Backend Provably Fair Spin Endpoint
+      const result = await onSpinSubmit(activeMode, wagerAmount, selectedCurrency, rouletteBetParam);
 
-    if (!result) {
+      if (!result) {
+        setIsSpinning(false);
+        stopAutoSpin();
+        return;
+      }
+
+      // Animate Spin based on Mode
+      if (activeMode === 'fortune') {
+        let segIndex = FORTUNE_WHEEL_SEGMENTS.findIndex(s => s.label === result.resultDetails?.segmentLabel);
+        if (segIndex < 0) segIndex = 0;
+        const totalSegs = FORTUNE_WHEEL_SEGMENTS.length;
+        const anglePerSeg = 360 / totalSegs;
+
+        // Desired modulo angle where segment segIndex is centered directly at 12 o'clock (270°)
+        const desiredFinalModulo = ((270 - (segIndex + 0.5) * anglePerSeg) % 360 + 360) % 360;
+
+        const fullSpins = 5 * 360;
+        const currentModulo = rotationAngle % 360;
+        let forwardDiff = desiredFinalModulo - currentModulo;
+        if (forwardDiff <= 0) {
+          forwardDiff += 360;
+        }
+        const targetAngle = rotationAngle + fullSpins + forwardDiff;
+
+        const duration = 3500;
+        const startTime = performance.now();
+        const startAngle = rotationAngle;
+
+        let lastTickAngle = startAngle;
+
+        const animateWheel = (now: number) => {
+          const elapsed = now - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          // Ease-out cubic formula
+          const easeOut = 1 - Math.pow(1 - progress, 3);
+          const currentAngle = startAngle + (targetAngle - startAngle) * easeOut;
+
+          setRotationAngle(currentAngle);
+
+          if (currentAngle - lastTickAngle >= 40) {
+            sounds.playTick();
+            lastTickAngle = currentAngle;
+          }
+
+          if (progress < 1) {
+            requestAnimationFrame(animateWheel);
+          } else {
+            finalizeSpinResult(result);
+          }
+        };
+
+        requestAnimationFrame(animateWheel);
+      } else if (activeMode === 'slots') {
+        // Slot Reel Animation
+        const duration = 2000;
+        const interval = setInterval(() => {
+          setSlotReels([
+            SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)],
+            SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)],
+            SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)]
+          ]);
+          sounds.playReelStop();
+        }, 100);
+
+        setTimeout(() => {
+          clearInterval(interval);
+          if (result.resultDetails?.slotSymbols) {
+            setSlotReels(result.resultDetails.slotSymbols);
+          }
+          finalizeSpinResult(result);
+        }, duration);
+      } else {
+        // Roulette Spin Animation
+        setTimeout(() => {
+          finalizeSpinResult(result);
+        }, 2000);
+      }
+    } catch (err) {
+      console.error('Spin action failed:', err);
       setIsSpinning(false);
       stopAutoSpin();
-      return;
-    }
-
-    // Animate Spin based on Mode
-    if (activeMode === 'fortune') {
-      let segIndex = FORTUNE_WHEEL_SEGMENTS.findIndex(s => s.label === result.resultDetails.segmentLabel);
-      if (segIndex < 0) segIndex = 0;
-      const totalSegs = FORTUNE_WHEEL_SEGMENTS.length;
-      const anglePerSeg = 360 / totalSegs;
-
-      // Desired modulo angle where segment segIndex is centered directly at 12 o'clock (270°)
-      const desiredFinalModulo = ((270 - (segIndex + 0.5) * anglePerSeg) % 360 + 360) % 360;
-
-      const fullSpins = 5 * 360;
-      const currentModulo = rotationAngle % 360;
-      let forwardDiff = desiredFinalModulo - currentModulo;
-      if (forwardDiff <= 0) {
-        forwardDiff += 360;
-      }
-      const targetAngle = rotationAngle + fullSpins + forwardDiff;
-
-      const duration = 3500;
-      const startTime = performance.now();
-      const startAngle = rotationAngle;
-
-      let lastTickAngle = startAngle;
-
-      const animateWheel = (now: number) => {
-        const elapsed = now - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        // Ease-out cubic formula
-        const easeOut = 1 - Math.pow(1 - progress, 3);
-        const currentAngle = startAngle + (targetAngle - startAngle) * easeOut;
-
-        setRotationAngle(currentAngle);
-
-        if (currentAngle - lastTickAngle >= 40) {
-          sounds.playTick();
-          lastTickAngle = currentAngle;
-        }
-
-        if (progress < 1) {
-          requestAnimationFrame(animateWheel);
-        } else {
-          finalizeSpinResult(result);
-        }
-      };
-
-      requestAnimationFrame(animateWheel);
-    } else if (activeMode === 'slots') {
-      // Slot Reel Animation
-      const duration = 2000;
-      const interval = setInterval(() => {
-        setSlotReels([
-          SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)],
-          SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)],
-          SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)]
-        ]);
-        sounds.playReelStop();
-      }, 100);
-
-      setTimeout(() => {
-        clearInterval(interval);
-        if (result.resultDetails.slotSymbols) {
-          setSlotReels(result.resultDetails.slotSymbols);
-        }
-        finalizeSpinResult(result);
-      }, duration);
-    } else {
-      // Roulette Spin Animation
-      setTimeout(() => {
-        finalizeSpinResult(result);
-      }, 2000);
+      setSpinError('Spin encountered an unexpected network error. Please retry.');
     }
   };
 
@@ -429,10 +441,11 @@ export const SpinArena: React.FC<SpinArenaProps> = ({
   // Quick Preset Wager Adjustments
   const setWagerPreset = (type: 'half' | 'double' | 'max' | 'preset', val?: number) => {
     sounds.playChip();
-    const currentBal = user.balances[selectedCurrency];
+    setSpinError(null);
+    const currentBal = Number(user.balances?.[selectedCurrency]) || 0;
     if (type === 'half') setWagerAmount(Math.max(1, Math.floor(wagerAmount / 2)));
-    else if (type === 'double') setWagerAmount(Math.min(currentBal, Math.floor(wagerAmount * 2)));
-    else if (type === 'max') setWagerAmount(Math.floor(currentBal));
+    else if (type === 'double') setWagerAmount(Math.max(1, Math.min(Math.max(10, currentBal), Math.floor(wagerAmount * 2))));
+    else if (type === 'max') setWagerAmount(Math.max(1, Math.floor(currentBal)));
     else if (type === 'preset' && val) setWagerAmount(val);
   };
 
@@ -451,18 +464,6 @@ export const SpinArena: React.FC<SpinArenaProps> = ({
           >
             <RotateCw className="w-4 h-4" />
             <span>Mega Fortune Wheel</span>
-          </button>
-
-          <button
-            onClick={() => { setActiveMode('slots'); sounds.playChip(); }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${
-              activeMode === 'slots'
-                ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg shadow-purple-500/20'
-                : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-850'
-            }`}
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Triple Crypto Slots</span>
           </button>
 
           <button
@@ -496,19 +497,40 @@ export const SpinArena: React.FC<SpinArenaProps> = ({
         {/* MODE 1: Mega Fortune Wheel */}
         {activeMode === 'fortune' && (
           <div
-            onClick={isAutoSpinActive || isSpinning ? undefined : handleSpin}
-            className={`relative flex flex-col items-center justify-center my-4 select-none ${
-              isAutoSpinActive || isSpinning ? 'cursor-not-allowed opacity-90' : 'cursor-pointer group'
-            }`}
-            title={isAutoSpinActive ? 'Auto-Spin Active' : 'Click to Spin!'}
+            className="relative flex flex-col items-center justify-center my-4 select-none"
+            title={isAutoSpinActive ? 'Auto-Spin Active' : 'Click Center or Button to Spin!'}
           >
             {/* Canvas Wheel */}
             <canvas
               ref={canvasRef}
               width={360}
               height={360}
-              className="w-[290px] h-[290px] sm:w-[360px] sm:h-[360px] transition-transform group-hover:scale-[1.02] active:scale-95 drop-shadow-2xl"
+              onClick={isAutoSpinActive || isSpinning ? undefined : handleSpin}
+              className={`w-[290px] h-[290px] sm:w-[360px] sm:h-[360px] drop-shadow-2xl transition-transform ${
+                isSpinning ? '' : 'cursor-pointer hover:scale-[1.01]'
+              }`}
             />
+            {/* Real Tactical Spin Button Centered On Hub */}
+            <button
+              id="fortune-wheel-spin-btn"
+              type="button"
+              disabled={isSpinning || isAutoSpinActive}
+              onClick={handleSpin}
+              className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 sm:w-20 sm:h-20 rounded-full flex flex-col items-center justify-center shadow-2xl transition-all border-2 border-white/90 ${
+                isSpinning
+                  ? 'bg-amber-600/90 text-amber-100 cursor-not-allowed scale-95'
+                  : 'bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-300 text-slate-950 hover:scale-110 active:scale-95 shadow-amber-500/60 cursor-pointer'
+              }`}
+            >
+              {isSpinning ? (
+                <RotateCw className="w-6 h-6 animate-spin text-slate-900" />
+              ) : (
+                <>
+                  <span className="font-black text-xs sm:text-sm tracking-wider">SPIN</span>
+                  <span className="text-[9px] font-extrabold opacity-80">{wagerAmount} ETB</span>
+                </>
+              )}
+            </button>
           </div>
         )}
 
@@ -728,11 +750,14 @@ export const SpinArena: React.FC<SpinArenaProps> = ({
               <div className="relative flex-1">
                 <input
                   type="number"
-                  step={selectedCurrency === 'BTC' ? 0.0001 : 1}
-                  min={1}
+                  step={selectedCurrency === 'BTC' ? 0.0001 : (selectedCurrency === 'ETH' ? 0.001 : (selectedCurrency === 'SOL' ? 0.01 : 1))}
+                  min={selectedCurrency === 'BTC' ? 0.0001 : (selectedCurrency === 'ETH' ? 0.001 : (selectedCurrency === 'SOL' ? 0.01 : 1))}
                   disabled={isAutoSpinActive || isSpinning}
-                  value={wagerAmount}
-                  onChange={(e) => setWagerAmount(Math.max(1, Number(e.target.value)))}
+                  value={wagerAmount === 0 ? '' : wagerAmount}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? 0 : Number(e.target.value);
+                    setWagerAmount(val);
+                  }}
                   className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-4 py-3 text-white font-mono font-bold text-sm focus:outline-none transition-colors disabled:opacity-50"
                 />
                 <span className="absolute right-3 top-3 text-xs font-bold text-amber-400">{selectedCurrency}</span>
@@ -791,49 +816,74 @@ export const SpinArena: React.FC<SpinArenaProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="md:col-span-5 flex items-center gap-3">
-            {autoSpin ? (
-              isAutoSpinActive ? (
-                <button
-                  onClick={stopAutoSpin}
-                  className="w-full flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-black text-lg tracking-wider uppercase transition-all shadow-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-rose-600/30 active:scale-98"
-                >
-                  <RotateCw className="w-5 h-5 animate-spin text-white" />
-                  <span>STOP AUTO ({autoSpinCount} LEFT)</span>
-                </button>
+          <div className="md:col-span-5 flex flex-col gap-2">
+            {spinError && (
+              <div className="flex items-center justify-between bg-rose-950/80 border border-rose-600/60 text-rose-200 text-xs px-3 py-2 rounded-xl">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  {spinError}
+                </span>
+                {onClaimFreeBonus && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClaimFreeBonus();
+                      setSpinError(null);
+                    }}
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black px-2.5 py-1 rounded-lg shrink-0 ml-2 shadow-sm"
+                  >
+                    +1 Birr Refill
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              {autoSpin ? (
+                isAutoSpinActive ? (
+                  <button
+                    id="stop-auto-spin-btn"
+                    onClick={stopAutoSpin}
+                    className="w-full flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-black text-lg tracking-wider uppercase transition-all shadow-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-rose-600/30 active:scale-98"
+                  >
+                    <RotateCw className="w-5 h-5 animate-spin text-white" />
+                    <span>STOP AUTO ({autoSpinCount} LEFT)</span>
+                  </button>
+                ) : (
+                  <button
+                    id="start-auto-spin-btn"
+                    onClick={startAutoSpin}
+                    disabled={isSpinning || autoSpinCount <= 0}
+                    className="w-full flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-black text-lg tracking-wider uppercase transition-all shadow-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 shadow-amber-500/25 hover:shadow-amber-500/40 active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Play className="w-5 h-5 fill-slate-950" />
+                    <span>START AUTO-SPIN ({autoSpinCount})</span>
+                  </button>
+                )
               ) : (
                 <button
-                  onClick={startAutoSpin}
-                  disabled={isSpinning || autoSpinCount <= 0}
-                  className="w-full flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-black text-lg tracking-wider uppercase transition-all shadow-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 shadow-amber-500/25 hover:shadow-amber-500/40 active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed"
+                  id="spin-now-button"
+                  onClick={handleSpin}
+                  disabled={isSpinning || isAutoSpinActive}
+                  className={`w-full flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-black text-lg tracking-wider uppercase transition-all shadow-xl ${
+                    isSpinning
+                      ? 'bg-slate-800 text-slate-400 cursor-not-allowed border border-slate-700'
+                      : 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 shadow-amber-500/25 hover:shadow-amber-500/40 active:scale-98 cursor-pointer'
+                  }`}
                 >
-                  <Play className="w-5 h-5 fill-slate-950" />
-                  <span>START AUTO-SPIN ({autoSpinCount})</span>
+                  {isSpinning ? (
+                    <>
+                      <RotateCw className="w-5 h-5 animate-spin text-slate-400" />
+                      <span>SPINNING...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-5 h-5 fill-slate-950" />
+                      <span>SPIN NOW ({wagerAmount} BIRR)</span>
+                    </>
+                  )}
                 </button>
-              )
-            ) : (
-              <button
-                onClick={handleSpin}
-                disabled={isSpinning || isAutoSpinActive}
-                className={`w-full flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-black text-lg tracking-wider uppercase transition-all shadow-xl ${
-                  isSpinning
-                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-                    : 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 shadow-amber-500/25 hover:shadow-amber-500/40 active:scale-98'
-                }`}
-              >
-                {isSpinning ? (
-                  <>
-                    <RotateCw className="w-5 h-5 animate-spin text-slate-400" />
-                    <span>SPINNING...</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-5 h-5 fill-slate-950" />
-                    <span>SPIN NOW</span>
-                  </>
-                )}
-              </button>
-            )}
+              )}
+            </div>
           </div>
         </div>
 

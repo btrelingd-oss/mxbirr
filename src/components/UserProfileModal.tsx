@@ -16,21 +16,11 @@ import {
   Zap,
   Sparkles,
   BarChart2,
-  List
+  List,
+  LogIn
 } from 'lucide-react';
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-  BarChart,
-  Bar
-} from 'recharts';
 import { UserProfile, SpinResult, CryptoCurrency, GameMode } from '../types';
+import { ProfitLossChart } from './ProfitLossChart';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -39,6 +29,7 @@ interface UserProfileModalProps {
   userSpins: SpinResult[];
   onUpdateClientSeed?: (seed: string) => void;
   onAddSampleSpins?: () => void;
+  onOpenAuth?: (mode?: 'login' | 'register') => void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -47,7 +38,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   user,
   userSpins,
   onUpdateClientSeed,
-  onAddSampleSpins
+  onAddSampleSpins,
+  onOpenAuth
 }) => {
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'analytics' | 'history' | 'settings'>('analytics');
@@ -85,81 +77,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const totalPayoutETB = filteredSpins.reduce((sum, s) => sum + (s.payout || 0), 0);
   const netProfitETB = totalPayoutETB - totalWageredETB;
   const maxMultiplier = totalSpins > 0 ? Math.max(...filteredSpins.map((s) => s.multiplier)) : 0;
-
-  // Process data for the Profit Over Time Recharts graph
-  let runningBalanceETB = 0;
-  let peakProfitETB = 0;
-  let lowestDrawdownETB = 0;
-
-  // Chronological order (oldest to newest) for line plot
-  const chronologicalSpins = [...filteredSpins].reverse();
-
-  const chartData = chronologicalSpins.map((spin, index) => {
-    const spinProfit = spin.payout - spin.wager;
-    runningBalanceETB += spinProfit;
-
-    if (runningBalanceETB > peakProfitETB) peakProfitETB = runningBalanceETB;
-    if (runningBalanceETB < lowestDrawdownETB) lowestDrawdownETB = runningBalanceETB;
-
-    const dateStr = spin.timestamp
-      ? new Date(spin.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      : `Spin #${index + 1}`;
-
-    return {
-      index: index + 1,
-      spinLabel: `Spin #${index + 1}`,
-      time: dateStr,
-      spinProfit: Number(spinProfit.toFixed(2)),
-      cumulativeProfit: Number(runningBalanceETB.toFixed(2)),
-      wager: spin.wager,
-      payout: spin.payout,
-      multiplier: spin.multiplier,
-      mode: spin.mode,
-      currency: spin.currency
-    };
-  });
-
-  // Custom Recharts Area Tooltip for Profit Over Time
-  const CustomProfitTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      const isPositive = data.cumulativeProfit >= 0;
-
-      return (
-        <div className="bg-slate-900/95 border border-slate-700/80 p-3.5 rounded-xl shadow-2xl text-xs flex flex-col gap-1.5 min-w-[200px] backdrop-blur-md">
-          <div className="flex items-center justify-between font-bold border-b border-slate-800 pb-1.5 mb-0.5">
-            <span className="text-amber-400">{data.spinLabel}</span>
-            <span className="text-slate-400 text-[10px] font-mono">{data.time}</span>
-          </div>
-
-          <div className="flex justify-between text-slate-300">
-            <span>Game Mode:</span>
-            <span className="font-semibold text-slate-100 uppercase">{data.mode}</span>
-          </div>
-
-          <div className="flex justify-between text-slate-300 font-mono">
-            <span>Wager:</span>
-            <span>{data.wager.toFixed(2)} {data.currency}</span>
-          </div>
-
-          <div className="flex justify-between text-slate-300 font-mono">
-            <span>Payout:</span>
-            <span className={data.multiplier > 0 ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
-              {data.payout.toFixed(2)} {data.currency} ({data.multiplier}x)
-            </span>
-          </div>
-
-          <div className="flex justify-between font-mono font-bold pt-1.5 border-t border-slate-800 text-sm">
-            <span>Profit / Loss:</span>
-            <span className={isPositive ? 'text-emerald-400' : 'text-rose-400'}>
-              {isPositive ? '+' : ''}{data.cumulativeProfit.toFixed(2)} ETB
-            </span>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
 
   const handleSaveSeed = () => {
     if (onUpdateClientSeed && clientSeedInput.trim()) {
@@ -264,6 +181,33 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
         </div>
 
+        {/* Guest Warning Banner if not authenticated */}
+        {!user.isAuthenticated && onOpenAuth && (
+          <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+            <div className="flex items-center gap-2 text-amber-200">
+              <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>You are playing as a <strong>Guest</strong>. Log in to permanently sync your balances, VIP perks, and wagering history!</span>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <button
+                id="profile-modal-login-btn"
+                onClick={() => onOpenAuth('login')}
+                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all shadow flex items-center gap-1.5"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Log In</span>
+              </button>
+              <button
+                id="profile-modal-register-btn"
+                onClick={() => onOpenAuth('register')}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30 font-bold text-xs transition-all"
+              >
+                Register
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Modal Navigation Tabs */}
         <div className="px-4 pt-3 bg-slate-950/40 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
@@ -276,7 +220,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               }`}
             >
               <TrendingUp className="w-4 h-4" />
-              <span>Profit Over Time</span>
+              <span>Profit / Loss Analysis</span>
             </button>
 
             <button
@@ -303,6 +247,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <span>Seed & Security</span>
             </button>
           </div>
+
+          {onOpenAuth && (
+            <button
+              id="profile-open-switch-btn"
+              onClick={() => onOpenAuth('login')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-all mb-1"
+              title="Log In / Switch Account"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Switch Account</span>
+            </button>
+          )}
 
           {/* Action to add sample spins if graph has low data */}
           {onAddSampleSpins && (
@@ -361,101 +317,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </div>
               </div>
 
-              {/* Four Stat Scorecard Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl flex flex-col justify-between">
-                  <span className="text-xs text-slate-400 font-semibold">Win Rate</span>
-                  <div className="mt-2 flex items-baseline justify-between">
-                    <span className="text-xl font-black font-mono text-amber-400">
-                      {winRate.toFixed(1)}%
-                    </span>
-                    <span className="text-[10px] text-slate-400">{winCount}W / {lossCount}L</span>
-                  </div>
-                </div>
-
-                <div className="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl flex flex-col justify-between">
-                  <span className="text-xs text-slate-400 font-semibold">Total Wagered</span>
-                  <div className="mt-2">
-                    <span className="text-xl font-black font-mono text-slate-100">
-                      {totalWageredETB.toLocaleString()} Birr
-                    </span>
-                  </div>
-                </div>
-
-                <div className="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl flex flex-col justify-between">
-                  <span className="text-xs text-slate-400 font-semibold">Net Cumulative Profit</span>
-                  <div className="mt-2">
-                    <span className={`text-xl font-black font-mono ${netProfitETB >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {netProfitETB >= 0 ? '+' : ''}{netProfitETB.toFixed(2)} Birr
-                    </span>
-                  </div>
-                </div>
-
-                <div className="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl flex flex-col justify-between">
-                  <span className="text-xs text-slate-400 font-semibold">Max Multiplier</span>
-                  <div className="mt-2">
-                    <span className="text-xl font-black font-mono text-yellow-400">
-                      {maxMultiplier.toFixed(1)}x
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* RECHARTS: Profit Over Time Graph */}
-              <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <BarChart2 className="w-4 h-4 text-amber-400" />
-                    <h3 className="text-sm font-black text-slate-100">
-                      Profit Over Time Trajectory
-                    </h3>
-                  </div>
-                  <span className="text-xs font-mono text-slate-400">
-                    {chartData.length} Wagers Tracked
-                  </span>
-                </div>
-
-                {chartData.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center text-slate-500">
-                    <Coins className="w-10 h-10 mb-2 opacity-50" />
-                    <p className="text-xs font-semibold text-slate-400">No wager history found for selected filter.</p>
-                    {onAddSampleSpins && (
-                      <button
-                        onClick={onAddSampleSpins}
-                        className="mt-3 px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs"
-                      >
-                        Generate Sample Wager History
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="h-[280px] w-full pt-2">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData} margin={{ top: 10, right: 15, left: -15, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="profileProfitGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={netProfitETB >= 0 ? '#10b981' : '#f43f5e'} stopOpacity={0.35} />
-                            <stop offset="95%" stopColor={netProfitETB >= 0 ? '#10b981' : '#f43f5e'} stopOpacity={0.0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                        <XAxis dataKey="spinLabel" stroke="#64748b" tick={{ fontSize: 10 }} />
-                        <YAxis stroke="#64748b" tick={{ fontSize: 10 }} tickFormatter={(v) => `${v} Birr`} />
-                        <Tooltip content={<CustomProfitTooltip />} />
-                        <ReferenceLine y={0} stroke="#475569" strokeDasharray="3 3" label={{ value: 'Breakeven', fill: '#64748b', fontSize: 10, position: 'insideBottomRight' }} />
-                        <Area
-                          type="monotone"
-                          dataKey="cumulativeProfit"
-                          stroke={netProfitETB >= 0 ? '#10b981' : '#f43f5e'}
-                          strokeWidth={2.5}
-                          fillOpacity={1}
-                          fill="url(#profileProfitGrad)"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </div>
+              {/* Profit / Loss Recharts Area Chart Visualization */}
+              <ProfitLossChart
+                spins={userSpins}
+                currencyFilter={currencyFilter}
+                gameFilter={gameFilter}
+                onAddSampleSpins={onAddSampleSpins}
+              />
             </div>
           )}
 

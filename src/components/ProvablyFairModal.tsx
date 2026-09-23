@@ -43,7 +43,7 @@ export const ProvablyFairModal: React.FC<ProvablyFairModalProps> = ({
 
         <div className="p-6 space-y-4 text-xs text-slate-300">
           <p className="text-slate-400 leading-relaxed">
-            MX Platform uses HMAC-SHA256 cryptographic hashing to ensure every spin outcome is generated deterministically before the bet is placed. Neither the platform nor the player can alter the outcome.
+            Yene Birr Platform uses HMAC-SHA256 cryptographic hashing to ensure every spin outcome is generated deterministically before the bet is placed. Neither the platform nor the player can alter the outcome.
           </p>
 
           <div className="space-y-3 bg-slate-950 p-4 rounded-xl border border-slate-800">

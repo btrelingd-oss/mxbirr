@@ -1,0 +1,114 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with Ethiopian CBE/Telebirr balances, VIP tier, role, and provably fair seed",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Auth UID" },
+        "email": { "type": "string", "description": "User email address" },
+        "username": { "type": "string", "description": "Display name" },
+        "name": { "type": "string", "description": "User full name" },
+        "phoneNumber": { "type": "string", "description": "User mobile phone number" },
+        "telebirrNumber": { "type": "string", "description": "Telebirr account phone number" },
+        "avatar": { "type": "string", "description": "Avatar URL" },
+        "address": { "type": "string", "description": "Wallet address or player ID" },
+        "authProvider": { "type": "string", "description": "google, password, or anonymous" },
+        "balances": { "type": "object", "description": "CBE and Telebirr wallet balances" },
+        "vipTier": { "type": "string", "description": "VIP Tier: Bronze, Silver, Gold, Platinum, Diamond" },
+        "vipPoints": { "type": "number", "description": "Current VIP progress points" },
+        "role": { "type": "string", "description": "User role: admin or user" },
+        "isAdmin": { "type": "boolean", "description": "Whether the user has administrative privileges" },
+        "clientSeed": { "type": "string", "description": "Provably fair client seed" },
+        "createdAt": { "type": "number", "description": "Account registration timestamp" },
+        "updatedAt": { "type": "number", "description": "Last updated timestamp" }
+      },
+      "required": ["id", "username", "balances"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Administrative authority record linked to Firebase Auth UID and email",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Admin Firebase Auth UID" },
+        "email": { "type": "string", "description": "Admin email (e.g. beamlakub9@gmail.com)" },
+        "role": { "type": "string", "description": "admin" },
+        "grantedAt": { "type": "number", "description": "Timestamp when admin role was granted" },
+        "grantedBy": { "type": "string", "description": "System or superadmin grant" }
+      },
+      "required": ["userId", "email", "role"]
+    },
+    "SpinResult": {
+      "title": "SpinResult",
+      "description": "Immutable spin history record for provably fair audit and analytics",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique spin transaction ID" },
+        "userId": { "type": "string", "description": "User UID who made the spin" },
+        "mode": { "type": "string", "description": "Game mode: fortune, slots, roulette" },
+        "username": { "type": "string", "description": "Player username" },
+        "avatar": { "type": "string", "description": "Player avatar" },
+        "wager": { "type": "number", "description": "Wager amount" },
+        "currency": { "type": "string", "description": "CBE or Telebirr" },
+        "multiplier": { "type": "number", "description": "Payout multiplier achieved" },
+        "payout": { "type": "number", "description": "Calculated win payout" },
+        "timestamp": { "type": "number", "description": "Timestamp of spin" },
+        "serverSeedHash": { "type": "string", "description": "SHA-256 hash of server seed" },
+        "clientSeed": { "type": "string", "description": "Client seed used" },
+        "nonce": { "type": "number", "description": "Spin sequence nonce" }
+      },
+      "required": ["id", "userId", "wager", "currency", "multiplier", "payout"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Multiplayer community chat messages synchronized in real time",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Message ID" },
+        "userId": { "type": "string", "description": "Author UID" },
+        "username": { "type": "string", "description": "Author username" },
+        "avatar": { "type": "string", "description": "Author avatar" },
+        "text": { "type": "string", "description": "Message content" },
+        "timestamp": { "type": "number", "description": "Sent timestamp" },
+        "vipTier": { "type": "string", "description": "Sender VIP tier" }
+      },
+      "required": ["id", "userId", "username", "text"]
+    },
+    "PhoneLoginRecord": {
+      "title": "PhoneLoginRecord",
+      "description": "Historical audit log of user login sessions with name and phone number",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Login record identifier" },
+        "userId": { "type": "string", "description": "User UID" },
+        "name": { "type": "string", "description": "Full name entered by user" },
+        "phoneNumber": { "type": "string", "description": "Phone number used during login" },
+        "telebirrNumber": { "type": "string", "description": "Telebirr number" },
+        "timestamp": { "type": "number", "description": "Login timestamp in milliseconds" }
+      },
+      "required": ["userId", "name", "phoneNumber", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User account documents containing name, phone number, balances, role, and settings"
+    },
+    "/phone_logins/{loginId}": {
+      "schema": "PhoneLoginRecord",
+      "description": "Audit log of phone logins with verified name and phone number"
+    },
+    "/admins/{adminId}": {
+      "schema": "AdminRecord",
+      "description": "Registry of authorized admin accounts with administrative privileges"
+    },
+    "/spins/{spinId}": {
+      "schema": "SpinResult",
+      "description": "Audit trail of provably fair game spins"
+    },
+    "/chat_messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Real-time chat community feed"
+    }
+  }
+}

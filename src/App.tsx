@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Gamepad2, Wallet, Crown, ShieldCheck, ArrowDownRight, Sparkles, User, LineChart, Zap, MessageSquare, Trophy, Smartphone, Wifi, Battery } from 'lucide-react';
+import { Gamepad2, Wallet, Crown, ShieldCheck, ArrowDownRight, Sparkles, User, LineChart, Zap, MessageSquare, Trophy, Smartphone, Wifi, Battery, LogIn } from 'lucide-react';
 import { Header } from './components/Header';
 import { SpinArena } from './components/SpinArena';
 import { MultiplayerSidebar } from './components/MultiplayerSidebar';
@@ -8,6 +8,20 @@ import { ProvablyFairModal } from './components/ProvablyFairModal';
 import { VipModal } from './components/VipModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { StreakNotification } from './components/StreakNotification';
+import { AuthModal } from './components/AuthModal';
+import { LoginDashboardModal } from './components/LoginDashboardModal';
+import { AdminDashboardModal } from './components/AdminDashboardModal';
+import { authService, getSavedSession, saveSession } from './utils/authService';
+import { sounds } from './utils/audio';
+import {
+  auth,
+  ensureFirebaseAuth,
+  syncUserProfileToFirestore,
+  recordSpinToFirestore,
+  listenToChatMessages,
+  sendChatMessageToFirestore
+} from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { UserProfile, CryptoCurrency, CryptoPrice, GameMode, SpinResult, ChatMessage, LeaderboardEntry, CryptoTransaction, WalletType } from './types';
 import { INITIAL_CRYPTO_PRICES } from './data/constants';
 
@@ -134,23 +148,39 @@ const SAMPLE_USER_SPINS: SpinResult[] = [
 ];
 
 export default function App() {
-  // User State
-  const [user, setUser] = useState<UserProfile>({
-    username: 'VIP_Player_' + Math.floor(1000 + Math.random() * 9000),
-    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&q=80',
-    address: '0x7F82a38419283749582736451029384756192A1B',
-    connected: true,
-    walletType: 'phantom',
-    balances: {
-      SOL: 1.00,
-      USDT: 1.00,
-      CBE: 1.00,
-      Telebirr: 1.00
-    },
-    vipTier: 'Gold',
-    vipPoints: 4800,
-    clientSeed: 'custom_client_seed_77'
+  // User Session & State
+  const [user, setUser] = useState<UserProfile>(() => {
+    const saved = getSavedSession();
+    if (saved) {
+      saved.balances = { CBE: 1.00, Telebirr: 1.00 };
+      saveSession(saved);
+      return saved;
+    }
+    return {
+      username: 'Guest_Player_' + Math.floor(1000 + Math.random() * 9000),
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
+      address: '0x' + Math.random().toString(16).substring(2, 8).toUpperCase() + '...',
+      connected: false,
+      isAuthenticated: false,
+      authProvider: 'guest',
+      balances: {
+        CBE: 1.00,
+        Telebirr: 1.00
+      },
+      cbeAccountNumber: '1000068535477',
+      telebirrNumber: '',
+      bankName: 'Commercial Bank of Ethiopia (CBE)',
+      vipTier: 'Bronze',
+      vipPoints: 0,
+      clientSeed: 'custom_client_seed_77'
+    };
   });
+
+  // Auth Modal State
+  const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register' | 'google'>('login');
+  const [loginDashboardOpen, setLoginDashboardOpen] = useState<boolean>(false);
+  const [adminModalOpen, setAdminModalOpen] = useState<boolean>(false);
 
   // App UI States
   const [selectedCurrency, setSelectedCurrency] = useState<CryptoCurrency>('CBE');
@@ -242,7 +272,7 @@ export default function App() {
     }
   ]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([
-    { rank: 1, username: 'kingu 😎', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&q=80', totalPayoutUSD: 2485000, totalWageredUSD: 3800000, biggestMultiplier: 250, winsCount: 242, vipTier: 'Diamond' },
+    { rank: 1, username: 'kingu 😎', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&q=80', totalPayoutUSD: 3000000, totalWageredUSD: 3800000, biggestMultiplier: 250, winsCount: 242, vipTier: 'Diamond' },
     { rank: 2, username: 'ABDI_BORA', avatar: 'https://images.unsplash.com/photo-1522529599102-193c0d76b5b6?auto=format&fit=crop&w=120&q=80', totalPayoutUSD: 1950000, totalWageredUSD: 3100000, biggestMultiplier: 170, winsCount: 190, vipTier: 'Gold' },
     { rank: 3, username: 'Hafi the flash', avatar: 'https://images.unsplash.com/photo-1531384441138-2736e62e0919?auto=format&fit=crop&w=120&q=80', totalPayoutUSD: 1620000, totalWageredUSD: 2600000, biggestMultiplier: 250, winsCount: 168, vipTier: 'Gold' },
     { rank: 4, username: 'MAMEEslt ❤️ ❤️ @gmail', avatar: 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?auto=format&fit=crop&w=120&q=80', totalPayoutUSD: 1380000, totalWageredUSD: 2200000, biggestMultiplier: 100, winsCount: 149, vipTier: 'Platinum' },
@@ -273,6 +303,23 @@ export default function App() {
 
   // WebSocket Reference
   const wsRef = React.useRef<WebSocket | null>(null);
+
+  // Ensure user wallet balance is strictly 1.00 Birr CBE and 1.00 Birr Telebirr
+  useEffect(() => {
+    setUser((prev) => {
+      if (prev.balances?.CBE === 1.00 && prev.balances?.Telebirr === 1.00) return prev;
+      const updated = {
+        ...prev,
+        balances: {
+          CBE: 1.00,
+          Telebirr: 1.00
+        }
+      };
+      saveSession(updated);
+      syncUserProfileToFirestore(updated);
+      return updated;
+    });
+  }, []);
 
   // Connect WebSocket & Sync
   useEffect(() => {
@@ -313,6 +360,45 @@ export default function App() {
 
     return () => {
       if (wsRef.current) wsRef.current.close();
+    };
+  }, []);
+
+  // Initialize Firebase Auth & Firestore Real-Time Sync
+  useEffect(() => {
+    ensureFirebaseAuth();
+
+    // Listen to Firebase Auth state
+    const unsubscribeAuth = onAuthStateChanged(auth, (fbUser) => {
+      if (fbUser && !fbUser.isAnonymous) {
+        const isAdmin = fbUser.email?.toLowerCase() === 'beamlakub9@gmail.com';
+        setUser((prev) => ({
+          ...prev,
+          id: fbUser.uid,
+          email: fbUser.email || prev.email,
+          username: fbUser.displayName || prev.username,
+          avatar: fbUser.photoURL || prev.avatar,
+          role: isAdmin ? 'admin' : (prev.role || 'user'),
+          isAdmin: isAdmin || prev.isAdmin,
+          isAuthenticated: true
+        }));
+      }
+    });
+
+    // Real-time listener for Firestore chat messages
+    const unsubscribeChat = listenToChatMessages((fireMessages) => {
+      if (fireMessages.length > 0) {
+        setChatHistory((prev) => {
+          const existingIds = new Set(prev.map((m) => m.id));
+          const newOnes = fireMessages.filter((m) => !existingIds.has(m.id));
+          if (newOnes.length === 0) return prev;
+          return [...prev, ...newOnes];
+        });
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeChat();
     };
   }, []);
 
@@ -365,17 +451,31 @@ export default function App() {
         setLastResult(result);
         setUserSpins((prev) => [result, ...prev]);
 
-        // Add payout back to balance & calculate win streak
-        if (result.payout > 0 || result.multiplier > 0) {
-          const clampedPayout = Math.min(400000, result.payout);
-          setUser((prev) => ({
-            ...prev,
-            balances: {
-              ...prev.balances,
-              [currency]: prev.balances[currency] + clampedPayout
-            }
-          }));
+        // Record spin to Firebase Firestore
+        recordSpinToFirestore(result, user.id);
 
+        const clampedPayout = Math.min(400000, result.payout || 0);
+
+        setUser((prev) => {
+          const currentBal = Number(prev.balances[currency]) || 0;
+          const nextBalances = {
+            ...prev.balances,
+            [currency]: currentBal + clampedPayout
+          };
+
+          const updatedUser: UserProfile = {
+            ...prev,
+            balances: nextBalances
+          };
+
+          // Sync updated balance to Firestore & Local Storage
+          syncUserProfileToFirestore(updatedUser);
+          saveSession(updatedUser);
+
+          return updatedUser;
+        });
+
+        if (result.payout > 0 || result.multiplier > 0) {
           setWinStreak((prevStreak) => {
             const nextStreak = prevStreak + 1;
             if (nextStreak >= 3) {
@@ -388,11 +488,66 @@ export default function App() {
         }
 
         return result;
+      } else {
+        // Refund wager if server failed
+        setUser((prev) => ({
+          ...prev,
+          balances: {
+            ...prev.balances,
+            [currency]: prev.balances[currency] + wager
+          }
+        }));
       }
     } catch (err) {
       console.error('Spin API Error', err);
+      // Refund wager on network failure
+      setUser((prev) => ({
+        ...prev,
+        balances: {
+          ...prev.balances,
+          [currency]: prev.balances[currency] + wager
+        }
+      }));
     }
     return null;
+  };
+
+  // Restore balance to exactly 1.00 Birr
+  const handleRestoreOneBirr = () => {
+    setUser((prev) => {
+      const updated: UserProfile = {
+        ...prev,
+        balances: {
+          ...prev.balances,
+          CBE: 1.00,
+          Telebirr: 1.00
+        }
+      };
+      saveSession(updated);
+      syncUserProfileToFirestore(updated);
+      return updated;
+    });
+    sounds.playChip();
+  };
+
+  // Free bonus reload handler
+  const handleClaimFreeBonus = () => {
+    setUser((prev) => {
+      const currentCBE = Number(prev.balances.CBE) || 0;
+      const currentTele = Number(prev.balances.Telebirr) || 0;
+      const updated: UserProfile = {
+        ...prev,
+        balances: {
+          ...prev.balances,
+          CBE: currentCBE < 1 ? 1.00 : currentCBE + 1.00,
+          Telebirr: currentTele < 1 ? 1.00 : currentTele + 1.00
+        }
+      };
+      saveSession(updated);
+      syncUserProfileToFirestore(updated);
+      return updated;
+    });
+    sounds.playWin(true);
   };
 
   // Deposit Handler
@@ -405,18 +560,58 @@ export default function App() {
       });
       const data = await res.json();
       if (data.success && data.transaction) {
-        setUser((prev) => ({
-          ...prev,
-          balances: {
+        setUser((prev) => {
+          const nextBalances = {
             ...prev.balances,
             [currency]: prev.balances[currency] + amount
-          }
-        }));
+          };
+          syncUserProfileToFirestore({
+            ...prev,
+            balances: nextBalances
+          });
+          return {
+            ...prev,
+            balances: nextBalances
+          };
+        });
         setTransactions((prev) => [data.transaction, ...prev]);
       }
     } catch (e) {
       console.error('Deposit Error', e);
     }
+  };
+
+  // Auto-sync authenticated session to storage
+  useEffect(() => {
+    if (user.isAuthenticated) {
+      saveSession(user);
+    }
+  }, [user]);
+
+  // Auth Session Handlers
+  const handleAuthSuccess = (authedUser: UserProfile) => {
+    setUser(authedUser);
+    setAuthModalOpen(false);
+  };
+
+  const handleSignOut = () => {
+    authService.signOut();
+    setUser({
+      username: 'Guest_Player_' + Math.floor(1000 + Math.random() * 9000),
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
+      address: '0x' + Math.random().toString(16).substring(2, 8).toUpperCase() + '...',
+      connected: false,
+      isAuthenticated: false,
+      authProvider: 'guest',
+      balances: {
+        CBE: 1.00,
+        Telebirr: 1.00
+      },
+      vipTier: 'Bronze',
+      vipPoints: 0,
+      clientSeed: 'seed_' + Math.random().toString(36).substring(2, 10)
+    });
+    sounds.playChip();
   };
 
   // Withdraw Handler
@@ -429,13 +624,20 @@ export default function App() {
       });
       const data = await res.json();
       if (data.success && data.transaction) {
-        setUser((prev) => ({
-          ...prev,
-          balances: {
+        setUser((prev) => {
+          const nextBalances = {
             ...prev.balances,
             [currency]: Math.max(0, prev.balances[currency] - amount)
-          }
-        }));
+          };
+          syncUserProfileToFirestore({
+            ...prev,
+            balances: nextBalances
+          });
+          return {
+            ...prev,
+            balances: nextBalances
+          };
+        });
         setTransactions((prev) => [data.transaction, ...prev]);
       }
     } catch (e) {
@@ -443,8 +645,20 @@ export default function App() {
     }
   };
 
-  // Send Chat Message via WebSocket
+  // Send Chat Message via WebSocket & Firebase Firestore
   const handleSendChat = (text: string) => {
+    // Persist to Firebase Firestore
+    sendChatMessageToFirestore(
+      {
+        username: user.username,
+        avatar: user.avatar,
+        text: text.trim(),
+        timestamp: Date.now(),
+        vipTier: user.vipTier
+      },
+      user.id
+    );
+
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
@@ -572,10 +786,22 @@ export default function App() {
         onOpenVip={() => setVipModalOpen(true)}
         onOpenProvablyFair={() => setProvablyFairModalOpen(true)}
         onOpenProfile={() => setProfileModalOpen(true)}
+        onOpenAuth={(mode) => {
+          if (mode === 'login') {
+            setLoginDashboardOpen(true);
+          } else {
+            setAuthModalMode(mode || 'login');
+            setAuthModalOpen(true);
+          }
+        }}
+        onOpenLoginDashboard={() => setLoginDashboardOpen(true)}
+        onSignOut={handleSignOut}
+        onOpenAdmin={() => setAdminModalOpen(true)}
         soundEnabled={soundEnabled}
         onToggleSound={() => setSoundEnabled(!soundEnabled)}
         isPhoneMode={isPhoneMode}
         onTogglePhoneMode={() => setIsPhoneMode(!isPhoneMode)}
+        onRestoreOneBirr={handleRestoreOneBirr}
       />
 
       {/* 3-Spin Winning Streak Notification & Firework Animation Overlay */}
@@ -622,6 +848,7 @@ export default function App() {
                     onSpinSubmit={handleSpinSubmit}
                     onOpenProvablyFair={() => setProvablyFairModalOpen(true)}
                     lastResult={lastResult}
+                    onClaimFreeBonus={handleClaimFreeBonus}
                   />
                 </main>
               )}
@@ -638,6 +865,7 @@ export default function App() {
                     vipTier={user.vipTier}
                     onlineCount={onlineCount}
                     activeTabOverride={sidebarTabOverride}
+                    onUpdateUser={(updated) => setUser((prev) => ({ ...prev, ...updated }))}
                   />
                 </div>
               )}
@@ -654,6 +882,7 @@ export default function App() {
                     onSpinSubmit={handleSpinSubmit}
                     onOpenProvablyFair={() => setProvablyFairModalOpen(true)}
                     lastResult={lastResult}
+                    onClaimFreeBonus={handleClaimFreeBonus}
                   />
                 </main>
 
@@ -667,6 +896,7 @@ export default function App() {
                   username={user.username}
                   vipTier={user.vipTier}
                   onlineCount={onlineCount}
+                  onUpdateUser={(updated) => setUser((prev) => ({ ...prev, ...updated }))}
                 />
               </div>
             )}
@@ -737,13 +967,33 @@ export default function App() {
               <span>Wallet</span>
             </button>
 
-            <button
-              onClick={() => setProfileModalOpen(true)}
-              className="flex flex-col items-center gap-1 text-[11px] font-bold text-cyan-400 hover:text-cyan-300 transition-colors active:scale-95"
-            >
-              <LineChart className="w-5 h-5 text-cyan-400" />
-              <span>Stats</span>
-            </button>
+            {!user.isAuthenticated ? (
+              <button
+                id="mobile-dock-login-btn"
+                onClick={() => {
+                  setLoginDashboardOpen(true);
+                  sounds.playChip();
+                }}
+                className="flex flex-col items-center gap-1 text-[11px] font-black text-amber-400 hover:text-amber-300 transition-colors active:scale-95"
+                title="Log In & Account Dashboard"
+              >
+                <LogIn className="w-5 h-5 text-amber-400" />
+                <span>Log In</span>
+              </button>
+            ) : (
+              <button
+                id="mobile-dock-profile-btn"
+                onClick={() => {
+                  setLoginDashboardOpen(true);
+                  sounds.playChip();
+                }}
+                className="flex flex-col items-center gap-1 text-[11px] font-bold text-amber-400 hover:text-amber-300 transition-colors active:scale-95"
+                title="Login & Security Dashboard"
+              >
+                <ShieldCheck className="w-5 h-5 text-amber-400" />
+                <span>Account</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -756,6 +1006,15 @@ export default function App() {
         userSpins={userSpins}
         onUpdateClientSeed={handleUpdateClientSeed}
         onAddSampleSpins={handleAddSampleSpins}
+        onOpenAuth={(mode) => {
+          setProfileModalOpen(false);
+          if (mode === 'login') {
+            setLoginDashboardOpen(true);
+          } else {
+            setAuthModalMode(mode || 'login');
+            setAuthModalOpen(true);
+          }
+        }}
       />
 
       <WalletModal
@@ -768,6 +1027,7 @@ export default function App() {
         onDeposit={handleDeposit}
         onWithdraw={handleWithdraw}
         transactions={transactions}
+        onRestoreOneBirr={handleRestoreOneBirr}
       />
 
       <ProvablyFairModal
@@ -781,6 +1041,37 @@ export default function App() {
         onClose={() => setVipModalOpen(false)}
         user={user}
         onClaimCashback={handleClaimCashback}
+      />
+
+      {/* Modern Login / Register & Session Management Modal */}
+      <AuthModal
+        isOpen={authModalOpen}
+        initialMode={authModalMode}
+        onClose={() => setAuthModalOpen(false)}
+        onSuccess={handleAuthSuccess}
+      />
+
+      {/* Login & Account Security Dashboard Modal */}
+      <LoginDashboardModal
+        isOpen={loginDashboardOpen}
+        onClose={() => setLoginDashboardOpen(false)}
+        currentUser={user}
+        onLoginSuccess={(updatedUser) => {
+          handleAuthSuccess(updatedUser);
+          setLoginDashboardOpen(false);
+        }}
+        onSignOut={handleSignOut}
+      />
+
+      {/* Dedicated Firebase Admin Control Center Modal */}
+      <AdminDashboardModal
+        isOpen={adminModalOpen}
+        currentUser={user}
+        onClose={() => setAdminModalOpen(false)}
+        onUserUpdated={(updatedUser) => {
+          setUser(updatedUser);
+          saveSession(updatedUser);
+        }}
       />
     </div>
   );

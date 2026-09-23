@@ -12,16 +12,32 @@ export interface CryptoPrice {
 
 export type VipTier = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond';
 
+export type AuthProvider = 'google' | 'password' | 'guest' | 'phone';
+
+export type UserRole = 'admin' | 'user';
+
 export interface UserProfile {
+  id?: string;
+  email?: string;
   username: string;
+  name?: string;
   avatar: string;
   address: string;
   connected: boolean;
+  isAuthenticated: boolean;
+  authProvider?: AuthProvider;
   walletType?: WalletType;
   balances: Record<CryptoCurrency, number>;
   vipTier: VipTier;
   vipPoints: number;
   clientSeed: string;
+  role?: UserRole;
+  isAdmin?: boolean;
+  createdAt?: number;
+  cbeAccountNumber?: string;
+  telebirrNumber?: string;
+  phoneNumber?: string;
+  bankName?: string;
 }
 
 export type GameMode = 'fortune' | 'slots' | 'roulette';

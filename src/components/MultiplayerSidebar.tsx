@@ -1,7 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Trophy, Zap, Crown, Gift, Users, X } from 'lucide-react';
-import { ChatMessage, LeaderboardEntry, SpinResult, CryptoCurrency, VipTier } from '../types';
+import { MessageSquare, Trophy, Zap, Crown, Users, X, Building2, Smartphone, ShieldCheck, Lock, ChevronDown } from 'lucide-react';
+import { ChatMessage, LeaderboardEntry, SpinResult, CryptoCurrency, VipTier, UserProfile } from '../types';
 import { sounds } from '../utils/audio';
+import { OnlinePlayersModal } from './OnlinePlayersModal';
+import { COMMUNITY_USERS } from '../data/communityUsers';
+import { WinnerAvatar } from './WinnerAvatar';
+import { INITIAL_LIVE_WINNERS, LiveWinnerFeedItem, generateNextLiveWinner } from '../data/liveWinnersData';
 
 const formatTimeAgo = (timestamp?: number) => {
   if (!timestamp) return 'Just now';
@@ -20,11 +24,12 @@ interface MultiplayerSidebarProps {
   leaderboard: LeaderboardEntry[];
   recentSpins: SpinResult[];
   onSendChat: (text: string) => void;
-  onSendTip: (recipient: string, amount: number, currency: CryptoCurrency) => void;
+  onSendTip?: (recipient: string, amount: number, currency: CryptoCurrency) => void;
   username: string;
   vipTier: VipTier;
   onlineCount: number;
-  activeTabOverride?: 'chat' | 'leaderboard' | 'feed';
+  activeTabOverride?: 'leaderboard' | 'feed';
+  onUpdateUser?: (updated: { username?: string; cbeAccountNumber?: string; telebirrNumber?: string }) => void;
 }
 
 export const MultiplayerSidebar: React.FC<MultiplayerSidebarProps> = ({
@@ -36,20 +41,72 @@ export const MultiplayerSidebar: React.FC<MultiplayerSidebarProps> = ({
   username,
   vipTier,
   onlineCount,
-  activeTabOverride
+  activeTabOverride,
+  onUpdateUser
 }) => {
-  const [activeTab, setActiveTab] = useState<'chat' | 'leaderboard' | 'feed'>('feed');
+  const [activeTab, setActiveTab] = useState<'leaderboard' | 'feed'>('feed');
 
   useEffect(() => {
     if (activeTabOverride) {
       setActiveTab(activeTabOverride);
     }
   }, [activeTabOverride]);
+
   const [inputText, setInputText] = useState<string>('');
-  const [tipModalOpen, setTipModalOpen] = useState<boolean>(false);
-  const [tipRecipient, setTipRecipient] = useState<string>('');
-  const [tipAmount, setTipAmount] = useState<number>(0.1);
-  const [tipCurrency, setTipCurrency] = useState<CryptoCurrency>('SOL');
+  const [onlinePlayersModalOpen, setOnlinePlayersModalOpen] = useState<boolean>(false);
+
+  // Live winners rapid ticker and configuration
+  const [liveWinners, setLiveWinners] = useState<LiveWinnerFeedItem[]>(INITIAL_LIVE_WINNERS);
+  const [feedSpeed, setFeedSpeed] = useState<'hyper' | 'fast' | 'normal' | 'paused'>('hyper');
+  const [minWinFilter, setMinWinFilter] = useState<number>(7000);
+  const feedContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Fast live winners ticker (0.1s - 0.3s in hyper mode)
+  useEffect(() => {
+    if (feedSpeed === 'paused') return;
+
+    const intervalMs =
+      feedSpeed === 'hyper'
+        ? Math.floor(180 + Math.random() * 120) // 180ms - 300ms (0.1s-0.3s)
+        : feedSpeed === 'fast'
+        ? 800
+        : 2000;
+
+    const timer = setInterval(() => {
+      const nextWin = generateNextLiveWinner();
+      if (minWinFilter === 0 || nextWin.payout >= minWinFilter) {
+        setLiveWinners((prev) => [nextWin, ...prev.slice(0, 45)]);
+      }
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [feedSpeed, minWinFilter]);
+
+  // Stream in recent user spins as well
+  useEffect(() => {
+    if (recentSpins.length > 0) {
+      const latest = recentSpins[0];
+      if (latest && (minWinFilter === 0 || latest.payout >= minWinFilter)) {
+        const item: LiveWinnerFeedItem = {
+          id: 'user_spin_' + latest.id + '_' + Date.now(),
+          username: latest.username || 'VIP Winner',
+          badge: 'BIG WIN',
+          mode: (latest.mode?.toUpperCase() as any) || 'FORTUNE',
+          payout: latest.payout,
+          multiplier: latest.multiplier,
+          wager: latest.wager,
+          timestamp: latest.timestamp || Date.now(),
+          vipTier: latest.payout >= 100000 ? 'Diamond' : (latest.payout >= 50000 ? 'Platinum' : 'Gold'),
+          bankName: 'Commercial Bank of Ethiopia (CBE)',
+          bankAccountNumber: '1000 ' + Math.floor(1000 + Math.random() * 9000) + ' ' + Math.floor(1000 + Math.random() * 9000) + ' 1',
+          telebirrNumber: '09' + Math.floor(10000000 + Math.random() * 90000000),
+          location: 'Addis Ababa, Ethiopia'
+        };
+        setLiveWinners((prev) => [item, ...prev.slice(0, 45)]);
+      }
+    }
+  }, [recentSpins, minWinFilter]);
+
   const [inspectWinner, setInspectWinner] = useState<{
     username: string;
     avatar: string;
@@ -59,6 +116,11 @@ export const MultiplayerSidebar: React.FC<MultiplayerSidebarProps> = ({
     multiplier?: number;
     currency?: string;
     timestamp?: number;
+    mode?: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    telebirrNumber?: string;
+    location?: string;
   } | null>(null);
 
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
@@ -76,14 +138,6 @@ export const MultiplayerSidebar: React.FC<MultiplayerSidebarProps> = ({
     onSendChat(inputText.trim());
     setInputText('');
     sounds.playChip();
-  };
-
-  const handleTipSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!tipRecipient || tipAmount <= 0) return;
-    onSendTip(tipRecipient, tipAmount, tipCurrency);
-    setTipModalOpen(false);
-    sounds.playWin(true);
   };
 
   return (
@@ -104,18 +158,6 @@ export const MultiplayerSidebar: React.FC<MultiplayerSidebarProps> = ({
           </button>
 
           <button
-            onClick={() => { setActiveTab('chat'); sounds.playChip(); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-              activeTab === 'chat'
-                ? 'bg-slate-800 text-amber-400 border border-slate-700'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            <span>Chat</span>
-          </button>
-
-          <button
             onClick={() => { setActiveTab('leaderboard'); sounds.playChip(); }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
               activeTab === 'leaderboard'
@@ -129,10 +171,18 @@ export const MultiplayerSidebar: React.FC<MultiplayerSidebarProps> = ({
         </div>
 
         {/* Online Players Count Badge */}
-        <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span>{onlineCount.toLocaleString()}</span>
-        </div>
+        <button
+          onClick={() => {
+            setOnlinePlayersModalOpen(true);
+            sounds.playChip();
+          }}
+          title="Click to view live online players"
+          className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 hover:border-emerald-500/60 px-2 py-0.5 rounded-full transition-all cursor-pointer shadow-sm active:scale-95 group"
+        >
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse group-hover:scale-110 transition-transform" />
+          <span className="font-mono font-black">{onlineCount.toLocaleString()}</span>
+          <Users className="w-3 h-3 text-emerald-400/80 group-hover:text-emerald-300 transition-colors" />
+        </button>
       </div>
 
       {/* TAB 1: Live Global Chat */}
@@ -179,8 +229,7 @@ export const MultiplayerSidebar: React.FC<MultiplayerSidebarProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setTipRecipient(msg.username);
-                        setTipModalOpen(true);
+                        setInputText(`@${msg.username} `);
                         sounds.playChip();
                       }}
                       className="text-slate-300 hover:text-amber-400 font-bold tracking-wide transition-colors"
@@ -192,17 +241,6 @@ export const MultiplayerSidebar: React.FC<MultiplayerSidebarProps> = ({
               </div>
             ))}
             <div ref={chatBottomRef} />
-          </div>
-
-          {/* Chat Tip Bar */}
-          <div className="mt-3 pt-2 border-t border-slate-800/80 flex flex-col gap-2">
-            <button
-              onClick={() => { setTipModalOpen(true); sounds.playChip(); }}
-              className="flex items-center justify-center gap-1.5 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-amber-400 text-[11px] rounded-lg transition-colors font-medium"
-            >
-              <Gift className="w-3.5 h-3.5" />
-              <span>Send Birr Tip to Player</span>
-            </button>
           </div>
         </div>
       )}
@@ -268,153 +306,287 @@ export const MultiplayerSidebar: React.FC<MultiplayerSidebarProps> = ({
 
       {/* TAB 3: Live Feed */}
       {activeTab === 'feed' && (
-        <div className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-[320px] lg:min-h-0 bg-slate-950">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-[11px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        <div className="flex-1 flex flex-col min-h-[320px] lg:min-h-0 bg-[#030712] relative overflow-hidden">
+          {/* Header matching image.png */}
+          <div className="p-3 pb-2 border-b border-slate-900 bg-slate-950/90 flex items-center justify-between gap-1 flex-wrap">
+            <div className="text-[11px] sm:text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5 shrink-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50" />
               <span>LIVE WINNER FEED</span>
             </div>
-            <span className="text-[10px] text-emerald-400 font-mono font-extrabold bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-md">
-              Min Win: 10,000 Birr
-            </span>
-          </div>
 
-          {recentSpins.filter((s) => s.payout >= 10000).map((spin) => {
-            const isWin = spin.multiplier > 0;
-            const isBigWin = spin.payout >= 400000;
-            return (
-              <div
-                key={spin.id}
-                onClick={() => setInspectWinner({
-                  username: spin.username,
-                  avatar: spin.avatar,
-                  payout: spin.payout,
-                  wager: spin.wager,
-                  multiplier: spin.multiplier,
-                  currency: spin.currency,
-                  timestamp: spin.timestamp
-                })}
-                className={`p-3 rounded-2xl border text-xs flex items-center justify-between shadow-md transition-all cursor-pointer group ${
-                  isBigWin
-                    ? 'bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border-amber-500/70 hover:border-amber-400 shadow-amber-500/10'
-                    : 'bg-slate-900/90 border-slate-800 hover:border-amber-500/50 hover:bg-slate-900'
+            <div className="flex items-center gap-1.5">
+              {/* Fast Ticker Speed Toggle (0.1s - 0.3s) */}
+              <button
+                onClick={() => {
+                  setFeedSpeed((prev) => {
+                    if (prev === 'hyper') return 'fast';
+                    if (prev === 'fast') return 'normal';
+                    if (prev === 'normal') return 'paused';
+                    return 'hyper';
+                  });
+                  sounds.playChip();
+                }}
+                title="Click to toggle live feed speed"
+                className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full border shadow-sm cursor-pointer transition-all active:scale-95 ${
+                  feedSpeed === 'hyper'
+                    ? 'text-cyan-300 bg-cyan-950/90 border-cyan-400/80 shadow-cyan-500/20 animate-pulse'
+                    : feedSpeed === 'fast'
+                    ? 'text-cyan-300 bg-cyan-950/70 border-cyan-500/60'
+                    : feedSpeed === 'normal'
+                    ? 'text-slate-300 bg-slate-900 border-slate-700'
+                    : 'text-rose-400 bg-rose-950/80 border-rose-600/70'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="relative shrink-0">
-                    <img
-                      src={spin.avatar}
-                      alt={spin.username}
-                      className={`w-10 h-10 rounded-full border-2 object-cover shadow-sm transition-colors ${
-                        isBigWin ? 'border-amber-400 shadow-amber-500/30' : 'border-slate-700 group-hover:border-amber-400'
-                      }`}
-                    />
-                    <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-slate-950 flex items-center justify-center text-[7px] font-bold text-black">
-                      ✓
-                    </span>
-                  </div>
+                <span>⚡</span>
+                <span>
+                  {feedSpeed === 'hyper'
+                    ? '0.1s-0.3s'
+                    : feedSpeed === 'fast'
+                    ? '0.8s'
+                    : feedSpeed === 'normal'
+                    ? '2.0s'
+                    : 'Paused'}
+                </span>
+              </button>
 
-                  <div className="truncate min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-black text-white text-xs truncate group-hover:text-amber-300 transition-colors">
-                        {spin.username}
-                      </span>
-                      {isBigWin && (
-                        <span className="text-[8px] bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 px-1.5 py-0.2 rounded font-black tracking-wider uppercase shadow-sm">
-                          BIG WIN
-                        </span>
-                      )}
+              {/* Min Win Filter (matching 7,000 Birr in image.png) */}
+              <button
+                onClick={() => {
+                  setMinWinFilter((prev) => {
+                    if (prev === 7000) return 10000;
+                    if (prev === 10000) return 25000;
+                    if (prev === 25000) return 50000;
+                    if (prev === 50000) return 0;
+                    return 7000;
+                  });
+                  sounds.playChip();
+                }}
+                title="Filter by minimum win amount"
+                className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-300 bg-emerald-950/80 hover:bg-emerald-900/90 border border-emerald-500/80 px-2 py-0.5 rounded-full shadow-sm cursor-pointer transition-all active:scale-95"
+              >
+                <span className="text-[9px]">▼</span>
+                <span>{minWinFilter > 0 ? `Min Win: ${minWinFilter.toLocaleString()} Birr` : 'All Wins'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Winner Feed Cards List */}
+          <div
+            ref={feedContainerRef}
+            className="flex-1 overflow-y-auto p-2 sm:p-2.5 space-y-2 relative scrollbar-thin scrollbar-thumb-slate-800"
+          >
+            {liveWinners
+              .filter((win) => minWinFilter === 0 || win.payout >= minWinFilter)
+              .map((win) => {
+                return (
+                  <div
+                    key={win.id}
+                    onClick={() => {
+                      setInspectWinner({
+                        username: win.username,
+                        avatar: '',
+                        vipTier: win.vipTier,
+                        payout: win.payout,
+                        wager: win.wager,
+                        multiplier: win.multiplier,
+                        currency: 'CBE',
+                        timestamp: win.timestamp,
+                        mode: win.mode,
+                        bankName: win.bankName,
+                        bankAccountNumber: win.bankAccountNumber,
+                        telebirrNumber: win.telebirrNumber,
+                        location: win.location
+                      });
+                      sounds.playChip();
+                    }}
+                    className="p-2.5 sm:p-3 rounded-2xl border-2 border-amber-500/90 bg-[#060a14] hover:bg-[#0c1222] hover:border-amber-400 text-xs flex items-center justify-between shadow-lg shadow-amber-500/5 transition-all cursor-pointer group active:scale-[0.99]"
+                  >
+                    {/* Left: Avatar + Username + Mode */}
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                      <WinnerAvatar size="md" showBadge={true} />
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-black text-white text-xs sm:text-sm truncate group-hover:text-amber-300 transition-colors">
+                            {win.username}
+                          </span>
+                          <span className="bg-[#f59e0b] text-slate-950 px-1.5 py-0.5 rounded font-black text-[9px] tracking-tight uppercase shadow-sm shrink-0">
+                            BIG WIN
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-0.5 text-slate-400">
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {formatTimeAgo(win.timestamp)}
+                          </span>
+                          <span className="text-[9px] text-slate-300 bg-slate-900 border border-slate-800 px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
+                            {win.mode}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] text-slate-400 font-medium">
-                        {formatTimeAgo(spin.timestamp)}
+
+                    {/* Right: Golden Payout + Multiplier */}
+                    <div className="text-right shrink-0 ml-2">
+                      <span className="font-mono font-black text-xs sm:text-sm text-[#fbbf24] block leading-tight">
+                        +{win.payout.toLocaleString()} Birr
                       </span>
-                      <span className="text-[9px] bg-slate-800 text-slate-300 border border-slate-700 px-1.5 py-0.2 rounded font-bold uppercase">
-                        {spin.mode}
+                      <span className="text-[10px] text-amber-400/90 font-mono font-bold block mt-0.5">
+                        {win.multiplier}x multiplier
                       </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTipRecipient(spin.username);
-                          setTipModalOpen(true);
-                          sounds.playChip();
-                        }}
-                        className="text-[10px] text-slate-300 hover:text-amber-400 font-bold ml-1 transition-colors"
-                      >
-                        Reply
-                      </button>
                     </div>
                   </div>
-                </div>
+                );
+              })}
 
-                <div className="text-right shrink-0 ml-2">
-                  <span className={`font-mono font-black text-xs block ${isWin ? 'text-emerald-400' : 'text-slate-400'}`}>
-                    {isWin ? `+${spin.payout ? spin.payout.toLocaleString() : '0'} Birr` : '0 Birr'}
-                  </span>
-                  <span className="text-[10px] text-amber-400 font-mono font-black block">
-                    {spin.multiplier}x multiplier
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+            {/* Jump to top floating button matching image.png */}
+            <div className="sticky bottom-2 flex justify-end pr-1 pointer-events-none">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  feedContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                  sounds.playChip();
+                }}
+                title="Jump to latest winner"
+                className="pointer-events-auto w-8 h-8 rounded-full bg-[#060a14] border border-amber-500 text-amber-400 flex items-center justify-center shadow-xl shadow-amber-500/20 hover:scale-110 active:scale-95 transition-all cursor-pointer"
+              >
+                <ChevronDown className="w-4 h-4 text-amber-400" />
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Winner Profile Inspect Modal */}
       {inspectWinner && (
-        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border-2 border-amber-500/50 rounded-3xl p-6 w-full max-w-sm shadow-2xl relative animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-[#080d1a] border-2 border-amber-500/80 rounded-3xl p-5 sm:p-6 w-full max-w-md shadow-2xl relative animate-in fade-in zoom-in duration-200 my-auto">
+            {/* Close Button */}
             <button
-              onClick={() => setInspectWinner(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800/80 p-1.5 rounded-full transition-colors"
+              onClick={() => {
+                setInspectWinner(null);
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 p-2 rounded-full transition-colors z-10"
             >
               <X className="w-4 h-4" />
             </button>
 
-            <div className="text-center pt-2">
+            {/* Header Avatar */}
+            <div className="text-center pt-1">
               <div className="relative inline-block mb-3">
-                <img
-                  src={inspectWinner.avatar}
-                  alt={inspectWinner.username}
-                  className="w-20 h-20 rounded-full border-4 border-amber-500 shadow-xl object-cover"
-                />
-                <span className="absolute bottom-0 right-0 bg-amber-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full border-2 border-slate-900">
-                  WINNER
+                <WinnerAvatar size="xl" showBadge={true} />
+                <span className="absolute -bottom-1 -right-1 bg-amber-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full border-2 border-[#080d1a] shadow">
+                  {inspectWinner.vipTier || 'VIP'}
                 </span>
               </div>
 
-              <h3 className="text-lg font-black text-white">{inspectWinner.username}</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Verified Player • {formatTimeAgo(inspectWinner.timestamp)}</p>
+              <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                <h3 className="text-xl font-black text-white">{inspectWinner.username}</h3>
+                <span className="bg-[#f59e0b] text-slate-950 px-1.5 py-0.5 rounded font-black text-[9px] uppercase shadow-sm">
+                  BIG WIN
+                </span>
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              </div>
 
+              <p className="text-xs text-slate-400 mt-1 flex items-center justify-center gap-1.5">
+                <span>🇪🇹 {inspectWinner.location || 'Addis Ababa, Ethiopia'}</span>
+                <span>•</span>
+                <span>{formatTimeAgo(inspectWinner.timestamp)}</span>
+              </p>
+
+              {/* Win Summary Card */}
               <div className="grid grid-cols-2 gap-2 mt-4 text-left">
-                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3">
-                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Recent Win</span>
-                  <span className="text-sm font-black text-emerald-400 font-mono block mt-0.5">
+                <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-3">
+                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Recent Big Win</span>
+                  <span className="text-base font-black text-[#fbbf24] font-mono block mt-0.5">
                     +{inspectWinner.payout?.toLocaleString() || 0} Birr
                   </span>
                 </div>
 
-                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3">
-                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Multiplier</span>
-                  <span className="text-sm font-black text-amber-400 font-mono block mt-0.5">
-                    {inspectWinner.multiplier || 0}x
+                <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-3">
+                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Multiplier / Mode</span>
+                  <span className="text-sm font-black text-amber-400 font-mono block mt-0.5 truncate">
+                    {inspectWinner.multiplier || 0}x • {inspectWinner.mode || 'FORTUNE'}
                   </span>
                 </div>
               </div>
 
-              <div className="mt-5 flex gap-2">
+              {/* Banking & Telebirr Profile Box - PRIVATE & PROTECTED */}
+              <div className="mt-4 bg-slate-950/90 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4 text-left space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-black text-slate-200 tracking-wide uppercase">
+                      Bank & Payout Profile
+                    </span>
+                  </div>
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-800/60">
+                    <ShieldCheck className="w-3 h-3" />
+                    Verified & Encrypted
+                  </span>
+                </div>
+
+                {/* Bank Name */}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400">Primary Bank:</span>
+                  <span className="font-bold text-slate-200">
+                    {inspectWinner.bankName || 'Commercial Bank of Ethiopia (CBE)'}
+                  </span>
+                </div>
+
+                {/* CBE Account Number (PRIVATE) */}
+                <div className="flex items-center justify-between bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[10px] text-amber-400 font-bold uppercase block">
+                      CBE Account Number
+                    </span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span className="text-xs font-mono font-bold text-slate-300 tracking-wider">
+                        •••• •••• ••••
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/70 border border-emerald-800/60 px-2.5 py-1 rounded-lg flex items-center gap-1 shrink-0">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    Private
+                  </span>
+                </div>
+
+                {/* Telebirr Phone Number (PRIVATE) */}
+                <div className="flex items-center justify-between bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[10px] text-sky-400 font-bold uppercase flex items-center gap-1">
+                      <Smartphone className="w-3 h-3 text-sky-400" />
+                      Telebirr Phone Number
+                    </span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Lock className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                      <span className="text-xs font-mono font-bold text-slate-300 tracking-wider">
+                        09•• ••• •••
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/70 border border-emerald-800/60 px-2.5 py-1 rounded-lg flex items-center gap-1 shrink-0">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    Private
+                  </span>
+                </div>
+              </div>
+
+              {/* Action: Cheer in Community Chat */}
+              <div className="mt-5">
                 <button
                   onClick={() => {
-                    setTipRecipient(inspectWinner.username);
+                    onSendChat(`🎉 Huge congratulations to @${inspectWinner.username} on winning +${inspectWinner.payout?.toLocaleString() || 0} Birr!`);
+                    setActiveTab('chat');
                     setInspectWinner(null);
-                    setTipModalOpen(true);
+                    sounds.playChip();
                   }}
-                  className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
+                  className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                 >
-                  <Gift className="w-4 h-4" />
-                  <span>Send Tip to {inspectWinner.username.split(' ')[0]}</span>
+                  <MessageSquare className="w-4 h-4 text-slate-950" />
+                  <span>Cheer in Community Chat</span>
                 </button>
               </div>
             </div>
@@ -422,71 +594,30 @@ export const MultiplayerSidebar: React.FC<MultiplayerSidebarProps> = ({
         </div>
       )}
 
-      {/* Tip Modal */}
-      {tipModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-black border-2 border-red-600 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            <h3 className="text-base font-black text-white mb-3 flex items-center gap-2">
-              <Gift className="w-5 h-5 text-red-500" />
-              <span>Send Birr Tip</span>
-            </h3>
-
-            <form onSubmit={handleTipSubmit} className="space-y-4">
-              <div>
-                <label className="text-xs text-red-500 font-bold block mb-1">Recipient Username</label>
-                <input
-                  type="text"
-                  placeholder="e.g. ABDI_BORA"
-                  value={tipRecipient}
-                  onChange={(e) => setTipRecipient(e.target.value)}
-                  className="w-full bg-white border-2 border-red-600 rounded-xl px-3 py-2 text-xs text-black font-bold focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs text-red-500 font-bold block mb-1">Channel</label>
-                  <select
-                    value={tipCurrency}
-                    onChange={(e) => setTipCurrency(e.target.value as CryptoCurrency)}
-                    className="w-full bg-white border-2 border-red-600 rounded-xl px-3 py-2 text-xs text-black font-bold focus:outline-none"
-                  >
-                    <option value="CBE">CBE Birr</option>
-                    <option value="Telebirr">Telebirr</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs text-red-500 font-bold block mb-1">Tip Amount</label>
-                  <input
-                    type="number"
-                    step={0.01}
-                    value={tipAmount}
-                    onChange={(e) => setTipAmount(Number(e.target.value))}
-                    className="w-full bg-white border-2 border-red-600 rounded-xl px-3 py-2 text-xs text-black font-mono font-black focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setTipModalOpen(false)}
-                  className="flex-1 py-2 bg-black border border-red-600 text-red-500 font-black text-xs rounded-xl transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white font-black text-xs rounded-xl transition-colors shadow-md border border-red-400"
-                >
-                  Confirm Tip
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Online Players Explorer Modal */}
+      <OnlinePlayersModal
+        isOpen={onlinePlayersModalOpen}
+        onClose={() => setOnlinePlayersModalOpen(false)}
+        onlineCount={onlineCount}
+        onInspectUser={(u) => {
+          setInspectWinner({
+            username: u.username,
+            avatar: u.avatar,
+            vipTier: (u.vipTier as any) || 'Diamond',
+            payout: 25000,
+            wager: 250,
+            multiplier: 100,
+            currency: 'CBE',
+            timestamp: Date.now() - 1000 * 60 * 5,
+            mode: 'FORTUNE',
+            bankName: 'Commercial Bank of Ethiopia (CBE)',
+            bankAccountNumber: '',
+            telebirrNumber: '',
+            location: 'Ethiopia'
+          });
+          setOnlinePlayersModalOpen(false);
+        }}
+      />
     </aside>
   );
 };
